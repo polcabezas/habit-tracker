@@ -17,6 +17,7 @@ export function JournalView() {
   const [completedHabitIds, setCompletedHabitIds] = useState<Set<string>>(new Set());
   const [habitMetadata, setHabitMetadata] = useState<Record<string, Record<string, any>>>({});
   const [dailyScore, setDailyScore] = useState(0);
+  const [resetNonce, setResetNonce] = useState(0);
   const confettiRef = useRef<ConfettiRef>(null);
 
   // 1. Fetch data query
@@ -267,6 +268,7 @@ export function JournalView() {
       setCompletedHabitIds(new Set());
       setHabitMetadata({});
       setDailyScore(0);
+      setResetNonce(prev => prev + 1);
     },
     onError: (err) => {
       console.error("Failed to clear habits:", err);
@@ -293,6 +295,7 @@ export function JournalView() {
         if (data.completedIds.has(h.id)) score += h.base_xp;
       });
       setDailyScore(score);
+      setResetNonce(prev => prev + 1);
     }
   };
 
@@ -325,7 +328,7 @@ export function JournalView() {
       <section className="flex flex-col pb-8">
         {habits.map(habit => (
           <HabitCard 
-            key={`${habit.id}-${currentDate.toISOString().split('T')[0]}`}
+            key={`${habit.id}-${currentDate.toISOString().split('T')[0]}-${resetNonce}`}
             habit={habit}
             isCompleted={completedHabitIds.has(habit.id)}
             metadataValues={habitMetadata[habit.id]}
