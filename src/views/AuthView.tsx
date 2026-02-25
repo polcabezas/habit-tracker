@@ -34,7 +34,7 @@ export function AuthView() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] px-4">
+    <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] px-4 pt-safe">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 flex flex-col items-center text-center">
           <div className="bg-primary/10 p-3 rounded-full mb-2">

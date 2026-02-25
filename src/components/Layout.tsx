@@ -8,7 +8,7 @@ export function Layout() {
         max-w-md restricts width on desktop and centers it to retain mobile-first design,
         but allows full width on smaller screens. 
       */}
-      <main className="container max-w-md mx-auto min-h-screen relative px-4 pb-4">
+      <main className="container max-w-md mx-auto min-h-screen relative px-4 pb-24 pt-safe">
         <Outlet />
       </main>
       

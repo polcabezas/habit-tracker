@@ -121,6 +121,23 @@
   button, [role="button"] {
     cursor: pointer;
   }
+
+  /* Safe Area Support for Mobile Devices */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  .px-safe {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  
+  /* Fixed element spacing */
+  .bottom-nav-height {
+    height: calc(4rem + env(safe-area-inset-bottom));
+  }
 }
 
 /* Premium micro-animations */

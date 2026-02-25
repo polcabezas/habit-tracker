@@ -68,12 +68,12 @@ export function HabitCard({ habit, isCompleted, metadataValues, onToggle, onMeta
           {habit.name}
         </span>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {/* [X] Button */}
           <button 
             onClick={handleSelectCross}
             className={cn(
-              "w-9 h-9 rounded-xl flex items-center justify-center transition-colors duration-200",
+              "w-10 h-10 rounded-xl flex items-center justify-center transition-colors duration-200",
               status === false 
                 ? (habit.type === 'negative'
                   ? "bg-success text-success-foreground"
@@ -81,14 +81,14 @@ export function HabitCard({ habit, isCompleted, metadataValues, onToggle, onMeta
                 : "bg-secondary/40 text-muted-foreground hover:bg-secondary/60"
             )}
           >
-            <X className="w-4 h-4" strokeWidth={3} />
+            <X className="w-5 h-5" strokeWidth={3} />
           </button>
 
           {/* [V] Button */}
           <button 
             onClick={handleSelectCheck}
             className={cn(
-              "w-9 h-9 rounded-xl flex items-center justify-center transition-colors duration-200",
+              "w-10 h-10 rounded-xl flex items-center justify-center transition-colors duration-200",
               status === true 
                 ? (habit.type === 'negative'
                   ? "bg-destructive/20 text-destructive"
@@ -96,7 +96,7 @@ export function HabitCard({ habit, isCompleted, metadataValues, onToggle, onMeta
                 : "bg-secondary/40 text-muted-foreground hover:bg-secondary/60"
             )}
           >
-            <Check className="w-4 h-4" strokeWidth={3} />
+            <Check className="w-5 h-5" strokeWidth={3} />
           </button>
         </div>
       </div>

@@ -90,7 +90,7 @@ export function StatsView() {
 
 
   return (
-    <div className="flex flex-col gap-6 pb-8 pt-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <h1 className="text-3xl font-black tracking-tight mb-2">Progress</h1>
 
       {/* Hero Stat */}

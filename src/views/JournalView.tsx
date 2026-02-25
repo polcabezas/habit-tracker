@@ -265,13 +265,13 @@ export function JournalView() {
   };
 
   return (
-    <div className="relative isolate flex flex-col min-h-screen pb-24 animate-in fade-in duration-500">
+    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
       {/* Background Gradient matching Whoop (Tan -> Dark) */}
       <div className="absolute top-0 left-1/2 w-[100vw] -translate-x-1/2 h-[400px] bg-gradient-to-b from-[#B89C78]/40 via-[#B89C78]/10 to-transparent pointer-events-none z-[-1]" />
 
       {/* Date Navigator */}
-      <div className="mt-6">
+      <div className="mt-2">
         <DateNavigator 
           currentDate={currentDate} 
           onPrevDay={handlePrevDay} 
@@ -318,7 +318,7 @@ export function JournalView() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed bottom-[80px] left-0 right-0 max-w-md mx-auto z-10"
+            className="fixed bottom-[calc(76px+env(safe-area-inset-bottom))] left-0 right-0 max-w-md mx-auto z-10"
           >
             <div className="px-4 w-full flex gap-3">
               <button 
