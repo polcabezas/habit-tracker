@@ -20,7 +20,7 @@ createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
-          <BrowserRouter>
+          <BrowserRouter basename="/habit-tracker/">
             <Routes>
               {/* Public routes */}
               <Route path="/auth" element={<AuthView />} />
