@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { DateNavigator } from '@/components/DateNavigator';
 import { HabitCard, type Habit } from '@/components/HabitCard';
 import { addDays } from 'date-fns';
@@ -182,6 +183,33 @@ export function JournalView() {
     frame();
   };
 
+  const hasChanges = useMemo(() => {
+    if (!data) return false;
+
+    if (completedHabitIds.size !== data.completedIds.size) return true;
+    for (const id of completedHabitIds) {
+      if (!data.completedIds.has(id)) return true;
+    }
+
+    const initialMeta = data.initialMetadata || {};
+    const currentMeta = habitMetadata || {};
+    
+    const allHabitIds = new Set([...Object.keys(initialMeta), ...Object.keys(currentMeta)]);
+    for (const habitId of allHabitIds) {
+      const initial = initialMeta[habitId] || {};
+      const current = currentMeta[habitId] || {};
+      
+      const allFieldIds = new Set([...Object.keys(initial), ...Object.keys(current)]);
+      for (const fieldId of allFieldIds) {
+        if (initial[fieldId] !== current[fieldId]) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }, [completedHabitIds, habitMetadata, data]);
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -220,6 +248,20 @@ export function JournalView() {
 
   const handleSave = () => {
     saveMutation.mutate();
+  };
+
+  const handleRestore = () => {
+    if (data) {
+      setHabits(data.habits);
+      setCompletedHabitIds(data.completedIds);
+      setHabitMetadata(data.initialMetadata || {});
+      
+      let score = 0;
+      data.habits.forEach(h => {
+        if (data.completedIds.has(h.id)) score += h.base_xp;
+      });
+      setDailyScore(score);
+    }
   };
 
   return (
@@ -269,17 +311,33 @@ export function JournalView() {
       </section>
 
       {/* Save Button */}
-      <div className="fixed bottom-[80px] left-0 right-0 max-w-md mx-auto z-10">
-        <div className="px-4 w-full">
-          <button 
-            onClick={handleSave}
-            disabled={saveMutation.isPending}
-            className="w-full bg-foreground text-background font-black uppercase tracking-widest py-4 rounded-[32px] shadow-lg hover:scale-[1.02] transition-transform active:scale-95 disabled:opacity-50"
+      <AnimatePresence>
+        {hasChanges && (
+          <motion.div 
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            className="fixed bottom-[80px] left-0 right-0 max-w-md mx-auto z-10"
           >
-            {saveMutation.isPending ? 'Saving...' : 'Save Journal'}
-          </button>
-        </div>
-      </div>
+            <div className="px-4 w-full flex gap-3">
+              <button 
+                onClick={handleRestore}
+                className="flex-shrink-0 px-4 bg-secondary text-secondary-foreground font-black uppercase tracking-widest py-4 rounded-[32px] shadow-lg hover:scale-[1.02] transition-transform active:scale-95 text-xs sm:text-sm"
+              >
+                Restore Values
+              </button>
+              <button 
+                onClick={handleSave}
+                disabled={saveMutation.isPending}
+                className="flex-grow bg-foreground text-background font-black uppercase tracking-widest py-4 rounded-[32px] shadow-lg hover:scale-[1.02] transition-transform active:scale-95 disabled:opacity-50 text-xs sm:text-sm"
+              >
+                {saveMutation.isPending ? 'Saving...' : 'Save Journal'}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {createPortal(
         <Confetti
