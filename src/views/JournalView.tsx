@@ -265,7 +265,7 @@ export function JournalView() {
   };
 
   return (
-    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="relative flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
       {/* Background Gradient matching Whoop (Tan -> Dark) */}
       <div className="absolute top-0 left-1/2 w-[100vw] -translate-x-1/2 h-[400px] bg-gradient-to-b from-[#B89C78]/40 via-[#B89C78]/10 to-transparent pointer-events-none z-[-1]" />
