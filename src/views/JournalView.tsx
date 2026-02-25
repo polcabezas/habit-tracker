@@ -318,7 +318,7 @@ export function JournalView() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed bottom-[calc(76px+env(safe-area-inset-bottom))] left-0 right-0 max-w-md mx-auto z-10"
+            className="fixed bottom-[calc(80px+env(safe-area-inset-bottom))] left-0 right-0 max-w-md mx-auto z-10"
           >
             <div className="px-4 w-full flex gap-3">
               <button 

@@ -3,7 +3,7 @@ import { BookOpen, LineChart, User } from 'lucide-react';
 
 export function BottomNavigation() {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-lg border-t border-border pb-safe z-50">
+    <nav className="bg-background/80 backdrop-blur-lg border-t border-border pb-safe z-50">
       <div className="container max-w-md mx-auto h-16 flex items-center justify-around px-4">
         <NavLink
           to="/journal"
