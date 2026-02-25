@@ -265,10 +265,7 @@ export function JournalView() {
   };
 
   return (
-    <div className="relative flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      
-      {/* Background Gradient matching Whoop (Tan -> Dark) */}
-      <div className="absolute top-0 left-1/2 w-[100vw] -translate-x-1/2 h-[400px] bg-gradient-to-b from-[#B89C78]/40 via-[#B89C78]/10 to-transparent pointer-events-none z-[-1]" />
+    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
       {/* Date Navigator */}
       <div className="mt-2">
@@ -283,9 +280,9 @@ export function JournalView() {
       </div>
 
       {/* Daily Score Hero */}
-      <section className="flex flex-col items-center justify-center py-8 mt-4 animate-in zoom-in-95 duration-300 relative">
-        <h2 className="text-foreground/60 text-xs font-bold uppercase tracking-[0.2em] mb-2">Daily Score</h2>
-        <div className="text-7xl font-black text-foreground drop-shadow-sm flex items-start gap-1">
+      <section className="flex flex-col items-center justify-center pt-2 pb-6 animate-in zoom-in-95 duration-300 relative">
+        <h2 className="text-foreground/60 text-xs font-bold uppercase tracking-[0.2em] mb-1">Daily Score</h2>
+        <div className="text-7xl font-black text-foreground drop-shadow-sm flex items-start gap-1 -mt-2">
           <AnimatedNumber value={dailyScore} />
           <span className="text-2xl font-bold text-foreground/50 tracking-wider mt-2">XP</span>
         </div>
