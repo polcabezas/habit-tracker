@@ -93,7 +93,6 @@ export function DateNavigator({ currentDate, onPrevDay, onNextDay, onSelectDate,
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    const handleScrollStart = () => setIsScrolling(true);
     
     const handleScrollEnd = () => {
       setIsScrolling(false);
@@ -125,7 +124,7 @@ export function DateNavigator({ currentDate, onPrevDay, onNextDay, onSelectDate,
   }, [updateSelectedDateFromScroll]);
 
   return (
-    <div className="flex flex-col items-center justify-center w-full gap-6 pt-4 bg-transparent select-none">
+    <div className="flex flex-col items-center justify-center w-[calc(100%+2rem)] -mx-4 gap-6 pt-4 bg-transparent select-none">
       {/* Top Header */}
       <div className="relative flex items-center justify-center w-full px-4">
         <div className="flex items-center justify-between w-full max-w-[200px]">
@@ -162,10 +161,10 @@ export function DateNavigator({ currentDate, onPrevDay, onNextDay, onSelectDate,
       </div>
 
       {/* Date List Container */}
-      <div className="w-full relative px-4 flex justify-center">
+      <div className="w-full relative flex justify-center">
         <div 
           ref={scrollContainerRef}
-          className="flex items-center gap-2 w-full max-w-md overflow-x-auto pb-6 no-scrollbar scroll-smooth"
+          className="flex items-center gap-2 w-full overflow-x-auto pb-6 no-scrollbar scroll-smooth"
           style={{ 
             scrollSnapType: 'x mandatory',
             paddingLeft: 'calc(50% - 26px)', 
@@ -217,4 +216,5 @@ export function DateNavigator({ currentDate, onPrevDay, onNextDay, onSelectDate,
     </div>
   );
 }
+
 
