@@ -17,9 +17,9 @@ export function DateNavigator({ currentDate, onPrevDay, onNextDay, onSelectDate,
   const [isScrolling, setIsScrolling] = useState(false);
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Generate a large range of dates (e.g., +/- 100 days from today) for "infinite" feel
+  // Generate a very large range of dates for "infinite" feel
   const today = useRef(startOfDay(new Date())).current;
-  const RANGE = 365;
+  const RANGE = 1000; // Increase range further
   const dateRange = useRef(
     Array.from({ length: RANGE * 2 + 1 }).map((_, i) => addDays(today, i - RANGE))
   ).current;
@@ -36,6 +36,7 @@ export function DateNavigator({ currentDate, onPrevDay, onNextDay, onSelectDate,
     
     if (index !== -1 && items[index]) {
       const item = items[index] as HTMLElement;
+      // Calculate scroll position so the item is exactly in the center
       const scrollLeft = item.offsetLeft - (container.offsetWidth / 2) + (item.offsetWidth / 2);
       
       container.scrollTo({
@@ -57,41 +58,74 @@ export function DateNavigator({ currentDate, onPrevDay, onNextDay, onSelectDate,
     }
   }, [currentDate, isScrolling, scrollToDate]);
 
-  const handleScroll = useCallback(() => {
+  // Robust selection logic using scrollend
+  const updateSelectedDateFromScroll = useCallback(() => {
     if (!scrollContainerRef.current) return;
-    setIsScrolling(true);
+    
+    const container = scrollContainerRef.current!;
+    const containerCenter = container.scrollLeft + container.offsetWidth / 2;
+    const items = container.querySelectorAll('.date-item');
+    
+    let closestIndex = -1;
+    let minDistance = Infinity;
 
-    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-
-    scrollTimeoutRef.current = setTimeout(() => {
-      setIsScrolling(false);
+    items.forEach((item, idx) => {
+      const itemLeft = (item as HTMLElement).offsetLeft;
+      const itemWidth = (item as HTMLElement).offsetWidth;
+      const itemCenter = itemLeft + itemWidth / 2;
+      const distance = Math.abs(containerCenter - itemCenter);
       
-      // Calculate which item is closest to the center
-      const container = scrollContainerRef.current!;
-      const containerCenter = container.scrollLeft + container.offsetWidth / 2;
-      const items = container.querySelectorAll('.date-item');
-      
-      let closestDate = dateRange[0];
-      let minDistance = Infinity;
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestIndex = idx;
+      }
+    });
 
-      items.forEach((item, idx) => {
-        const itemCenter = (item as HTMLElement).offsetLeft + (item as HTMLElement).offsetWidth / 2;
-        const distance = Math.abs(containerCenter - itemCenter);
-        
-        if (distance < minDistance) {
-          minDistance = distance;
-          closestDate = dateRange[idx];
-        }
-      });
-
+    if (closestIndex !== -1) {
+      const closestDate = dateRange[closestIndex];
       if (!isSameDay(closestDate, currentDate)) {
         onSelectDate(closestDate);
       }
-    }, 150); // Debounce to allow snapping to finish
+    }
   }, [currentDate, dateRange, onSelectDate]);
 
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleScrollStart = () => setIsScrolling(true);
+    
+    const handleScrollEnd = () => {
+      setIsScrolling(false);
+      updateSelectedDateFromScroll();
+    };
+
+    // Fallback for browsers that don't support scrollend
+    const handleScroll = () => {
+      setIsScrolling(true);
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+      scrollTimeoutRef.current = setTimeout(() => {
+        handleScrollEnd();
+      }, 100);
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    // Use modern scrollend if available
+    if ('onscrollend' in window) {
+      container.addEventListener('scrollend', handleScrollEnd);
+    }
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      if ('onscrollend' in window) {
+        container.removeEventListener('scrollend', handleScrollEnd);
+      }
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    };
+  }, [updateSelectedDateFromScroll]);
+
   return (
-    <div className="flex flex-col items-center justify-center w-full gap-6 pt-4 bg-transparent">
+    <div className="flex flex-col items-center justify-center w-full gap-6 pt-4 bg-transparent select-none">
       {/* Top Header */}
       <div className="relative flex items-center justify-center w-full px-4">
         <div className="flex items-center justify-between w-full max-w-[200px]">
@@ -127,54 +161,60 @@ export function DateNavigator({ currentDate, onPrevDay, onNextDay, onSelectDate,
         )}
       </div>
 
-      <div 
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
-        className="flex items-center gap-2 w-full overflow-x-auto pb-4 px-4 no-scrollbar scroll-smooth"
-        style={{ 
-          scrollSnapType: 'x mandatory',
-          paddingLeft: 'calc(50% - 26px)', // Center the first item
-          paddingRight: 'calc(50% - 26px)' // Center the last item
-        }}
-      >
-        {dateRange.map((date, idx) => {
-          const isSelected = isSameDay(date, currentDate);
-          const dateStr = date.toISOString().split('T')[0];
-          const hasData = loggedDates?.has(dateStr);
-          return (
-            <button
-              key={idx}
-              onClick={() => {
-                onSelectDate(date);
-                scrollToDate(date);
-              }}
-              className={cn(
-                "date-item flex flex-col items-center justify-center w-[52px] h-[72px] rounded-full shrink-0 transition-all scroll-snap-align-center",
-                isSelected 
-                  ? "border border-foreground bg-foreground/10" 
-                  : "bg-foreground/5 hover:bg-foreground/10 opacity-40 scale-90"
-              )}
-              style={{ scrollSnapAlign: 'center' }}
-            >
-              <span className="text-[11px] font-semibold text-foreground/80 uppercase">
-                {format(date, 'eee')}
-              </span>
-              <span className="text-lg font-bold text-foreground leading-tight">
-                {format(date, 'd')}
-              </span>
-              <div className="mt-1 flex items-center justify-center min-h-[16px]">
-                {hasData ? (
-                  <div className="w-4 h-4 rounded-full bg-success flex items-center justify-center">
-                    <Check className="w-3 h-3 text-success-foreground" strokeWidth={4} />
-                  </div>
-                ) : (
-                  <div className="w-3 h-3 rounded-full bg-foreground/20"></div>
+      {/* Date List Container */}
+      <div className="w-full relative px-4 flex justify-center">
+        <div 
+          ref={scrollContainerRef}
+          className="flex items-center gap-2 w-full max-w-md overflow-x-auto pb-6 no-scrollbar scroll-smooth"
+          style={{ 
+            scrollSnapType: 'x mandatory',
+            paddingLeft: 'calc(50% - 26px)', 
+            paddingRight: 'calc(50% - 26px)'
+          }}
+        >
+          {dateRange.map((date, idx) => {
+            const isSelected = isSameDay(date, currentDate);
+            const dateStr = date.toISOString().split('T')[0];
+            const hasData = loggedDates?.has(dateStr);
+            return (
+              <button
+                key={idx}
+                onClick={() => {
+                  onSelectDate(date);
+                  scrollToDate(date);
+                }}
+                className={cn(
+                  "date-item flex flex-col items-center justify-center w-[52px] h-[72px] rounded-full shrink-0 transition-all",
+                  isSelected 
+                    ? "border border-foreground bg-foreground/10" 
+                    : "bg-foreground/5 hover:bg-foreground/10 opacity-40 scale-75"
                 )}
-              </div>
-            </button>
-          );
-        })}
+                style={{ 
+                  scrollSnapAlign: 'center',
+                  scrollSnapStop: 'always'
+                }}
+              >
+                <span className="text-[11px] font-semibold text-foreground/80 uppercase">
+                  {format(date, 'eee')}
+                </span>
+                <span className="text-lg font-bold text-foreground leading-tight">
+                  {format(date, 'd')}
+                </span>
+                <div className="mt-1 flex items-center justify-center min-h-[16px]">
+                  {hasData ? (
+                    <div className="w-4 h-4 rounded-full bg-success flex items-center justify-center">
+                      <Check className="w-3 h-3 text-success-foreground" strokeWidth={4} />
+                    </div>
+                  ) : (
+                    <div className="w-3 h-3 rounded-full bg-foreground/20"></div>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
 }
+
