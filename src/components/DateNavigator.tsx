@@ -1,7 +1,18 @@
-import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, Check, RotateCcw } from 'lucide-react';
+import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, Check, RotateCcw, Trash2 } from 'lucide-react';
 import { format, isToday, addDays, isSameDay, startOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useEffect, useRef, useState, useCallback } from 'react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface DateNavigatorProps {
   currentDate: Date;
@@ -9,10 +20,11 @@ interface DateNavigatorProps {
   onNextDay: () => void;
   onSelectDate: (date: Date) => void;
   onBackToToday: () => void;
+  onClearDay?: () => void;
   loggedDates?: Set<string>;
 }
 
-export function DateNavigator({ currentDate, onPrevDay, onNextDay, onSelectDate, onBackToToday, loggedDates }: DateNavigatorProps) {
+export function DateNavigator({ currentDate, onPrevDay, onNextDay, onSelectDate, onBackToToday, onClearDay, loggedDates }: DateNavigatorProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isScrolling, setIsScrolling] = useState(false);
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -127,6 +139,36 @@ export function DateNavigator({ currentDate, onPrevDay, onNextDay, onSelectDate,
     <div className="flex flex-col items-center justify-center w-[calc(100%+2rem)] -mx-4 gap-6 pt-4 bg-transparent select-none">
       {/* Top Header */}
       <div className="relative flex items-center justify-center w-full px-4">
+        {onClearDay && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button 
+                className="absolute left-4 flex items-center gap-1.5 text-[10px] font-bold tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Trash2 className="w-3 h-3" />
+                CLEAR
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="max-w-[90vw] sm:max-w-md rounded-[24px]">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will delete all habit logs for {isToday(currentDate) ? 'today' : format(currentDate, 'MMM d')}. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="rounded-full">Cancel</AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={onClearDay}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-full"
+                >
+                  Continue
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+
         <div className="flex items-center justify-between w-full max-w-[200px]">
           <button 
             onClick={onPrevDay}

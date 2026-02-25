@@ -246,6 +246,38 @@ export function JournalView() {
     }
   });
 
+  const clearMutation = useMutation({
+    mutationFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) throw new Error("Must be logged in to clear.");
+
+      const dateStr = currentDate.toISOString().split('T')[0];
+
+      const { error } = await supabase
+        .from('habit_logs')
+        .delete()
+        .eq('user_id', userId)
+        .eq('date', dateStr);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['journal'] });
+      setCompletedHabitIds(new Set());
+      setHabitMetadata({});
+      setDailyScore(0);
+    },
+    onError: (err) => {
+      console.error("Failed to clear habits:", err);
+      alert("Failed to clear journal: " + err.message);
+    }
+  });
+
+  const handleClearDay = () => {
+    clearMutation.mutate();
+  };
+
   const handleSave = () => {
     saveMutation.mutate();
   };
@@ -275,6 +307,7 @@ export function JournalView() {
           onNextDay={handleNextDay} 
           onSelectDate={handleSelectDate}
           onBackToToday={handleBackToToday}
+          onClearDay={handleClearDay}
           loggedDates={data?.loggedDates}
         />
       </div>
