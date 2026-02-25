@@ -1,7 +1,7 @@
 import { ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, Check, RotateCcw, Trash2 } from 'lucide-react';
 import { format, isToday, addDays, isSameDay, startOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,7 +26,6 @@ interface DateNavigatorProps {
 
 export function DateNavigator({ currentDate, onPrevDay, onNextDay, onSelectDate, onBackToToday, onClearDay, loggedDates }: DateNavigatorProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [isScrolling, setIsScrolling] = useState(false);
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Generate a very large range of dates for "infinite" feel
@@ -65,10 +64,8 @@ export function DateNavigator({ currentDate, onPrevDay, onNextDay, onSelectDate,
 
   // Sync scroll position when currentDate changes externally (e.g. arrows, "Back to Today")
   useEffect(() => {
-    if (!isScrolling) {
-      scrollToDate(currentDate);
-    }
-  }, [currentDate, isScrolling, scrollToDate]);
+    scrollToDate(currentDate);
+  }, [currentDate, scrollToDate]);
 
   // Robust selection logic using scrollend
   const updateSelectedDateFromScroll = useCallback(() => {
@@ -107,13 +104,12 @@ export function DateNavigator({ currentDate, onPrevDay, onNextDay, onSelectDate,
 
     
     const handleScrollEnd = () => {
-      setIsScrolling(false);
       updateSelectedDateFromScroll();
     };
 
     // Fallback for browsers that don't support scrollend
     const handleScroll = () => {
-      setIsScrolling(true);
+      // Use scrollend-like behavior via timeout
       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
       scrollTimeoutRef.current = setTimeout(() => {
         handleScrollEnd();
