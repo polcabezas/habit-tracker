@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 
 // --- Types ---
-export type MetadataFieldType = 'number' | 'time' | 'boolean' | 'string';
+export type MetadataFieldType = 'number' | 'time' | 'boolean' | 'string' | 'duration';
 
 export interface MetadataField {
   id: string;
@@ -19,6 +19,7 @@ export interface Habit {
   base_xp: number;
   type: 'positive' | 'negative';
   metadataSchema?: MetadataField[];
+  frequency?: number[];
 }
 
 interface HabitCardProps {
@@ -111,7 +112,7 @@ export function HabitCard({ habit, isCompleted, metadataValues, onToggle, onMeta
         <div className="flex flex-col gap-6 pt-2 pb-4">
           {habit.metadataSchema?.map((field) => (
             <div key={field.id} className="flex items-center justify-between">
-              <span className="text-sm font-medium text-foreground max-w-[60%] pl-1">
+              <span className="text-sm font-medium text-foreground max-w-[50%] pl-1">
                 {field.label}
               </span>
               
@@ -141,6 +142,30 @@ export function HabitCard({ habit, isCompleted, metadataValues, onToggle, onMeta
                 </div>
               )}
               
+              {field.type === 'duration' && (() => {
+                const totalMinutes = Number(metadataValues?.[field.id] ?? field.defaultValue ?? 0);
+                const hours = Math.floor(totalMinutes / 60);
+                const minutes = totalMinutes % 60;
+                // Cap hours at 23 to work with type="time"
+                const displayHours = Math.min(23, hours);
+                const timeString = `${displayHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                
+                return (
+                  <input
+                    type="time"
+                    value={timeString}
+                    onChange={(e) => {
+                      if (!e.target.value) return;
+                      const [h, m] = e.target.value.split(':').map(Number);
+                      if (!isNaN(h) && !isNaN(m)) {
+                        onMetadataChange?.(habit.id, field.id, (h * 60) + m);
+                      }
+                    }}
+                    className="bg-secondary/40 text-foreground font-bold text-sm tracking-wider px-3 py-2 rounded-xl focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                );
+              })()}
+
               {field.type === 'time' && (
                 <input 
                   type="time"
@@ -184,3 +209,4 @@ export function HabitCard({ habit, isCompleted, metadataValues, onToggle, onMeta
     </div>
   );
 }
+

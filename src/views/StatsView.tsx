@@ -1,10 +1,25 @@
-import { Flame, Snowflake, Trophy } from 'lucide-react';
+import { Flame, Snowflake, Trophy, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useState, useMemo } from 'react';
 import { AnimatedNumber } from '@/components/AnimatedNumber';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { subDays, format, isSameDay } from 'date-fns';
+import { 
+  subDays, 
+  format, 
+  isSameDay, 
+  startOfWeek, 
+  endOfWeek, 
+  startOfMonth, 
+  endOfMonth, 
+  startOfYear, 
+  endOfYear,
+  subWeeks,
+  subMonths,
+  subYears,
+  differenceInDays,
+  isWithinInterval
+} from 'date-fns';
 
 export function StatsView() {
   const [activeTab, setActiveTab] = useState<'7d' | '30d' | 'ytd'>('7d');
@@ -16,11 +31,9 @@ export function StatsView() {
       const userId = session?.user?.id;
       if (!userId) return null;
 
-      // 1. Fetch habits to know their XP values
       const { data: habits } = await supabase.from('habits').select('id, base_xp').eq('user_id', userId);
       const xpMap = new Map(habits?.map(h => [h.id, h.base_xp]) || []);
 
-      // 2. Fetch all logs for this user to calculate all-time and streaks
       const { data: logs } = await supabase
         .from('habit_logs')
         .select('date, habit_id')
@@ -35,24 +48,48 @@ export function StatsView() {
         const xp = xpMap.get(log.habit_id) || 0;
         allTimeXp += xp;
         if (xp > 0) {
-           logSet.add(log.date); // Mark this day as having at least one completed habit
+           logSet.add(log.date);
            dailyXp.set(log.date, (dailyXp.get(log.date) || 0) + xp);
         }
       });
 
-      // Simple current streak calc
+      const now = new Date();
+      
+      const calculatePeriodStats = (start: Date, end: Date) => {
+        let total = 0;
+        const days = Math.max(1, differenceInDays(end, start) + 1);
+        dailyXp.forEach((xp, dateStr) => {
+          const d = new Date(dateStr);
+          if (isWithinInterval(d, { start, end })) {
+            total += xp;
+          }
+        });
+        return total / days;
+      };
+
+      const avgWeek = calculatePeriodStats(startOfWeek(now), now);
+      const prevAvgWeek = calculatePeriodStats(startOfWeek(subWeeks(now, 1)), endOfWeek(subWeeks(now, 1)));
+      
+      const avgMonth = calculatePeriodStats(startOfMonth(now), now);
+      const prevAvgMonth = calculatePeriodStats(startOfMonth(subMonths(now, 1)), endOfMonth(subMonths(now, 1)));
+      
+      const avgYear = calculatePeriodStats(startOfYear(now), now);
+      const prevAvgYear = calculatePeriodStats(startOfYear(subYears(now, 1)), endOfYear(subYears(now, 1)));
+
+      const calcDiff = (curr: number, prev: number) => {
+        if (prev === 0) return curr > 0 ? 100 : 0;
+        return ((curr - prev) / prev) * 100;
+      };
+
       let streak = 0;
       let checkDate = new Date();
-      // start checking from today
       while (true) {
         const dateStr = format(checkDate, 'yyyy-MM-dd');
         if (logSet.has(dateStr)) {
           streak++;
           checkDate = subDays(checkDate, 1);
         } else {
-          // If we are checking today and missed, maybe we did it yesterday, so we are at risk but streak isn't necessarily 0 if we haven't lost it yet
-           // To be forgiving, if streak is 0 and we are checking today, check yesterday
-           if (streak === 0 && isSameDay(checkDate, new Date())) {
+           if (streak === 0 && isSameDay(checkDate, now)) {
                checkDate = subDays(checkDate, 1);
                const ydayStr = format(checkDate, 'yyyy-MM-dd');
                if (logSet.has(ydayStr)) {
@@ -65,7 +102,14 @@ export function StatsView() {
         }
       }
 
-      return { allTimeXp, streak, dailyXp };
+      return { 
+        allTimeXp, 
+        streak, 
+        dailyXp,
+        avgWeek, diffWeek: calcDiff(avgWeek, prevAvgWeek),
+        avgMonth, diffMonth: calcDiff(avgMonth, prevAvgMonth),
+        avgYear, diffYear: calcDiff(avgYear, prevAvgYear)
+      };
     }
   });
 
@@ -93,6 +137,19 @@ export function StatsView() {
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <h1 className="text-3xl font-black tracking-tight mb-2">Progress</h1>
 
+      {/* Streaks Display */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-card border border-border rounded-[24px] p-4 flex items-center justify-center gap-3 shadow-sm">
+          <Flame className="w-6 h-6 text-orange-500" />
+          <div className="text-xl font-bold"><AnimatedNumber value={stats?.streak || 0} /></div>
+        </div>
+        
+        <div className="bg-card border border-border rounded-[24px] p-4 flex items-center justify-center gap-3 shadow-sm relative group cursor-pointer">
+          <Snowflake className="w-6 h-6 text-blue-400 group-hover:scale-110 transition-transform" />
+          <div className="text-xl font-bold"><AnimatedNumber value={2} /></div>
+        </div>
+      </div>
+
       {/* Hero Stat */}
       <div className="bg-card border border-border rounded-[32px] p-6 shadow-sm relative overflow-hidden h-[140px] flex flex-col justify-center">
         <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none pr-4">
@@ -111,23 +168,19 @@ export function StatsView() {
         </div>
       </div>
 
-      {/* Streaks Display */}
+      {/* Advanced Stats Grid */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-card border border-border rounded-[32px] p-4 flex flex-col items-center justify-center gap-2 shadow-sm">
-          <Flame className="w-8 h-8 text-orange-500" />
-          <div className="text-2xl font-bold"><AnimatedNumber value={stats?.streak || 0} /> Days</div>
-          <div className="text-xs text-muted-foreground font-medium text-center">
-            Current Streak
-          </div>
-        </div>
+        {/* Weekly Stats */}
+        <StatCard label="Daily Avg (Week)" value={stats?.avgWeek} />
+        <TrendCard label="Weekly Change" diff={stats?.diffWeek} />
         
-        <div className="bg-card border border-border rounded-[32px] p-4 flex flex-col items-center justify-center gap-2 shadow-sm relative group cursor-pointer">
-          <Snowflake className="w-8 h-8 text-blue-400 group-hover:scale-110 transition-transform" />
-          <div className="text-2xl font-bold"><AnimatedNumber value={2} /></div>
-          <div className="text-xs text-muted-foreground font-medium text-center">
-            Streak Freezers<br/>Available
-          </div>
-        </div>
+        {/* Monthly Stats */}
+        <StatCard label="Daily Avg (Month)" value={stats?.avgMonth} />
+        <TrendCard label="Monthly Change" diff={stats?.diffMonth} />
+        
+        {/* Yearly Stats */}
+        <StatCard label="Daily Avg (Year)" value={stats?.avgYear} />
+        <TrendCard label="Yearly Change" diff={stats?.diffYear} />
       </div>
 
       {/* Trend Analytics */}
@@ -180,6 +233,34 @@ export function StatsView() {
             </ResponsiveContainer>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ label, value }: { label: string, value?: number }) {
+  return (
+    <div className="bg-card border border-border rounded-[24px] p-4 flex flex-col gap-1 shadow-sm">
+      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{label}</p>
+      <div className="text-2xl font-black text-foreground">
+        <AnimatedNumber value={Math.round(value || 0)} />
+      </div>
+    </div>
+  );
+}
+
+function TrendCard({ label, diff }: { label: string, diff?: number }) {
+  const isPositive = (diff || 0) > 0;
+  const isZero = (diff || 0) === 0;
+  
+  return (
+    <div className="bg-card border border-border rounded-[24px] p-4 flex flex-col gap-1 shadow-sm">
+      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{label}</p>
+      <div className={`flex items-center gap-1.5 text-lg font-black ${
+        isZero ? 'text-muted-foreground' : isPositive ? 'text-emerald-500' : 'text-rose-500'
+      }`}>
+        {isZero ? <Minus className="w-4 h-4" /> : isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+        <span>{Math.abs(Math.round(diff || 0))}%</span>
       </div>
     </div>
   );

@@ -18,6 +18,7 @@ export function ProfileView() {
   const [habitType, setHabitType] = useState<'positive' | 'negative'>('positive');
   const [baseXp, setBaseXp] = useState(10);
   const [metadataSchema, setMetadataSchema] = useState<MetadataField[]>([]);
+  const [frequency, setFrequency] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
 
   // Fetch current user's habits
   const habitsQuery = useQuery({
@@ -39,7 +40,8 @@ export function ProfileView() {
         name: row.name,
         base_xp: row.base_xp,
         type: row.type,
-        metadataSchema: row.metadata_schema as any
+        metadataSchema: row.metadata_schema as any,
+        frequency: row.frequency,
       })) as Habit[];
     }
   });
@@ -73,7 +75,8 @@ export function ProfileView() {
           name: habitName,
           type: habitType,
           base_xp: Number(baseXp),
-          metadata_schema: metadataSchema.length > 0 ? (metadataSchema as any) : null
+          metadata_schema: metadataSchema.length > 0 ? (metadataSchema as any) : null,
+          frequency: frequency
         });
 
       if (error) throw error;
@@ -82,6 +85,7 @@ export function ProfileView() {
       queryClient.invalidateQueries({ queryKey: ['habits'] });
       setHabitName('');
       setMetadataSchema([]);
+      setFrequency([0, 1, 2, 3, 4, 5, 6]);
     },
     onError: (err) => {
       console.error('Error adding habit:', err);
@@ -170,6 +174,47 @@ export function ProfileView() {
             </div>
           </div>
 
+          {/* Days of the Week Selector */}
+          <div className="pt-2">
+            <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-2 block">Frequency (Days of the week)</label>
+            <div className="flex gap-1 sm:gap-2 w-full justify-between">
+              {[
+                { label: 'S', value: 0 },
+                { label: 'M', value: 1 },
+                { label: 'T', value: 2 },
+                { label: 'W', value: 3 },
+                { label: 'T', value: 4 },
+                { label: 'F', value: 5 },
+                { label: 'S', value: 6 },
+              ].map((day) => {
+                const isSelected = frequency.includes(day.value);
+                return (
+                  <button
+                    key={day.value}
+                    type="button"
+                    onClick={() => {
+                      if (isSelected) {
+                        setFrequency(prev => prev.filter(d => d !== day.value));
+                      } else {
+                        setFrequency(prev => [...prev, day.value].sort());
+                      }
+                    }}
+                    className={`h-10 w-10 flex items-center justify-center rounded-full text-sm font-bold transition-all ${
+                      isSelected 
+                        ? 'bg-primary text-primary-foreground shadow-md scale-105' 
+                        : 'bg-secondary/50 text-muted-foreground hover:bg-secondary border border-border/50'
+                    }`}
+                  >
+                    {day.label}
+                  </button>
+                );
+              })}
+            </div>
+            {frequency.length === 0 && (
+              <p className="text-xs text-destructive mt-2 font-medium">Please select at least one day.</p>
+            )}
+          </div>
+
           {/* Metadata Fields Section */}
           <div className="pt-4 border-t border-border mt-2">
             <div className="flex items-center justify-between mb-3">
@@ -205,6 +250,7 @@ export function ProfileView() {
                       className="w-[45%] bg-card border border-border rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring appearance-none text-foreground font-medium"
                     >
                       <option value="number">Number Input</option>
+                      <option value="duration">Duration Input</option>
                       <option value="time">Time Input</option>
                       <option value="string">Text Input</option>
                       <option value="boolean">Yes/No Toggle</option>
@@ -242,7 +288,7 @@ export function ProfileView() {
 
           <button 
             type="submit" 
-            disabled={createHabitMutation.isPending || !habitName}
+            disabled={createHabitMutation.isPending || !habitName || frequency.length === 0}
             className="mt-4 w-full bg-primary text-primary-foreground font-black uppercase tracking-widest text-sm rounded-full py-3.5 hover:scale-[1.02] active:scale-95 disabled:opacity-50 transition-all shadow-md"
           >
             {createHabitMutation.isPending ? 'Creating...' : 'Add Habit'}

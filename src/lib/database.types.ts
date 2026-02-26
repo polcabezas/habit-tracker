@@ -17,6 +17,7 @@ export interface Database {
           type: 'positive' | 'negative'
           base_xp: number
           metadata_schema: Json | null
+          frequency: number[] | null
           created_at: string
           updated_at: string
         }
@@ -27,6 +28,7 @@ export interface Database {
           type?: 'positive' | 'negative'
           base_xp?: number
           metadata_schema?: Json | null
+          frequency?: number[] | null
           created_at?: string
           updated_at?: string
         }
@@ -37,6 +39,7 @@ export interface Database {
           type?: 'positive' | 'negative'
           base_xp?: number
           metadata_schema?: Json | null
+          frequency?: number[] | null
           created_at?: string
           updated_at?: string
         }
@@ -57,6 +60,7 @@ export interface Database {
           completed_at: string
           date: string
           metadata_values: Json | null
+          xp_earned: number
         }
         Insert: {
           id?: string
@@ -65,6 +69,7 @@ export interface Database {
           completed_at?: string
           date: string
           metadata_values?: Json | null
+          xp_earned?: number
         }
         Update: {
           id?: string
@@ -73,6 +78,7 @@ export interface Database {
           completed_at?: string
           date?: string
           metadata_values?: Json | null
+          xp_earned?: number
         }
         Relationships: [
           {

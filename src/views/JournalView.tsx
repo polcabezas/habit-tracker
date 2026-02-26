@@ -39,13 +39,21 @@ export function JournalView() {
         
       if (habitsError) throw habitsError;
       
-      const mappedHabits: Habit[] = (habitsData || []).map((row: any) => ({
-        id: row.id,
-        name: row.name,
-        base_xp: row.base_xp,
-        type: row.type,
-        metadataSchema: row.metadata_schema as any
-      }));
+      const currentDayOfWeek = currentDate.getDay();
+      
+      const mappedHabits: Habit[] = (habitsData || [])
+        .filter((row: any) => {
+          if (!row.frequency || !Array.isArray(row.frequency)) return true;
+          return row.frequency.includes(currentDayOfWeek);
+        })
+        .map((row: any) => ({
+          id: row.id,
+          name: row.name,
+          base_xp: row.base_xp,
+          type: row.type,
+          metadataSchema: row.metadata_schema as any,
+          frequency: row.frequency
+        }));
       
       // Fetch logs for the 7-day window
       const startDate = addDays(currentDate, -3).toISOString().split('T')[0];
@@ -135,7 +143,7 @@ export function JournalView() {
               if (newMeta[field.id] === undefined && field.defaultValue !== undefined && field.defaultValue !== '') {
                 newMeta[field.id] = field.type === 'number' ? Number(field.defaultValue) : field.defaultValue;
                 changed = true;
-              } else if (newMeta[field.id] === undefined && field.type === 'number') {
+              } else if (newMeta[field.id] === undefined && (field.type === 'number' || field.type === 'duration')) {
                 newMeta[field.id] = 0;
                 changed = true;
               } else if (newMeta[field.id] === undefined && field.type === 'boolean') {
