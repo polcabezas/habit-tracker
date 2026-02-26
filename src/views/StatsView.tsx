@@ -34,9 +34,10 @@ export function StatsView() {
       const { data: habits } = await supabase.from('habits').select('id, base_xp').eq('user_id', userId);
       const xpMap = new Map(habits?.map(h => [h.id, h.base_xp]) || []);
 
+      // 2. Fetch all logs for this user to calculate all-time and streaks
       const { data: logs } = await supabase
         .from('habit_logs')
-        .select('date, habit_id')
+        .select('date, habit_id, xp_earned')
         .eq('user_id', userId)
         .order('date', { ascending: false });
 
@@ -45,10 +46,13 @@ export function StatsView() {
       const logSet = new Set<string>();
 
       (logs || []).forEach(log => {
-        const xp = xpMap.get(log.habit_id) || 0;
+        const xp = (log.xp_earned !== undefined && log.xp_earned !== null && log.xp_earned > 0) 
+          ? log.xp_earned 
+          : (xpMap.get(log.habit_id) || 0);
+          
         allTimeXp += xp;
         if (xp > 0) {
-           logSet.add(log.date);
+           logSet.add(log.date); // Mark this day as having at least one completed habit
            dailyXp.set(log.date, (dailyXp.get(log.date) || 0) + xp);
         }
       });

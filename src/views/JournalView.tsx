@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DateNavigator } from '@/components/DateNavigator';
 import { HabitCard, type Habit } from '@/components/HabitCard';
-import { addDays } from 'date-fns';
+import { addDays, format, subDays } from 'date-fns';
+import { calculateCompoundXP } from '@/lib/scoring';
 import { Confetti, type ConfettiRef } from '@/components/magicui/confetti';
 import { AnimatedNumber } from '@/components/AnimatedNumber';
 import { supabase } from '@/lib/supabase';
@@ -55,16 +56,12 @@ export function JournalView() {
           frequency: row.frequency
         }));
       
-      // Fetch logs for the 7-day window
-      const startDate = addDays(currentDate, -3).toISOString().split('T')[0];
-      const endDate = addDays(currentDate, 3).toISOString().split('T')[0];
-      
+      // Fetch all logs to accurately calculate streaks
       const { data: logs, error: logsError } = await supabase
         .from('habit_logs')
-        .select('habit_id, metadata_values, date')
+        .select('habit_id, metadata_values, date, xp_earned')
         .eq('user_id', userId)
-        .gte('date', startDate)
-        .lte('date', endDate);
+        .order('date', { ascending: false });
 
       if (logsError) throw logsError;
 
@@ -73,18 +70,47 @@ export function JournalView() {
       const loggedDates = new Set<string>();
 
       const dateStr = currentDate.toISOString().split('T')[0];
+      const logsByHabit = new Map<string, Set<string>>();
+      const savedXpToday: Record<string, number> = {};
 
       (logs || []).forEach((l: any) => {
         loggedDates.add(l.date as string);
+        
+        if (!logsByHabit.has(l.habit_id)) logsByHabit.set(l.habit_id, new Set());
+        logsByHabit.get(l.habit_id)!.add(l.date as string);
+        
         if (l.date === dateStr) {
           completedIds.add(l.habit_id as string);
           if (l.metadata_values) {
             initialMetadata[l.habit_id] = l.metadata_values;
           }
+          if (l.xp_earned !== undefined && l.xp_earned !== null) {
+            savedXpToday[l.habit_id] = l.xp_earned;
+          }
         }
       });
       
-      return { habits: mappedHabits, completedIds, initialMetadata, loggedDates };
+      // Calculate streak as of yesterday for each habit
+      const streakYesterday: Record<string, number> = {};
+      mappedHabits.forEach(h => {
+        let streak = 0;
+        let checkDate = addDays(currentDate, -1);
+        const habitLogs = logsByHabit.get(h.id);
+        if (habitLogs) {
+          while (true) {
+            const dStr = format(checkDate, 'yyyy-MM-dd');
+            if (habitLogs.has(dStr)) {
+              streak++;
+              checkDate = subDays(checkDate, 1);
+            } else {
+              break;
+            }
+          }
+        }
+        streakYesterday[h.id] = streak;
+      });
+      
+      return { habits: mappedHabits, completedIds, initialMetadata, loggedDates, streakYesterday, savedXpToday };
     }
   });
 
@@ -97,7 +123,11 @@ export function JournalView() {
       
       let score = 0;
       data.habits.forEach(h => {
-        if (data.completedIds.has(h.id)) score += h.base_xp;
+        if (data.completedIds.has(h.id)) {
+            const streak = data.streakYesterday?.[h.id] || 0;
+            const xpEarned = data.savedXpToday?.[h.id] ?? calculateCompoundXP(streak, h.base_xp);
+            score += xpEarned;
+        }
       });
       setDailyScore(score);
     }
@@ -164,7 +194,9 @@ export function JournalView() {
       
       const habit = habits.find(h => h.id === id);
       if (habit) {
-        setDailyScore(prevScore => prevScore + (completed ? habit.base_xp : -habit.base_xp));
+        const streak = data?.streakYesterday?.[id] || 0;
+        const xpAmount = data?.savedXpToday?.[id] ?? calculateCompoundXP(streak, habit.base_xp);
+        setDailyScore(prevScore => prevScore + (completed ? xpAmount : -xpAmount));
       }
 
       return newSet;
@@ -233,12 +265,20 @@ export function JournalView() {
         .eq('user_id', userId)
         .eq('date', dateStr);
 
-      const logsToInsert = Array.from(completedHabitIds).map(habitId => ({
-        user_id: userId,
-        habit_id: habitId,
-        date: dateStr,
-        metadata_values: habitMetadata[habitId] || {}
-      }));
+      const logsToInsert = Array.from(completedHabitIds).map(habitId => {
+        const habit = habits.find(h => h.id === habitId);
+        const base_xp = habit?.base_xp || 10;
+        const streak = data?.streakYesterday?.[habitId] || 0;
+        const xp_earned = calculateCompoundXP(streak, base_xp);
+
+        return {
+          user_id: userId,
+          habit_id: habitId,
+          date: dateStr,
+          metadata_values: habitMetadata[habitId] || {},
+          xp_earned: xp_earned
+        };
+      });
 
       if (logsToInsert.length > 0) {
          const { error } = await supabase.from('habit_logs').insert(logsToInsert);
@@ -334,16 +374,22 @@ export function JournalView() {
 
       {/* Habit List */}
       <section className="flex flex-col pb-8">
-        {habits.map(habit => (
-          <HabitCard 
-            key={`${habit.id}-${currentDate.toISOString().split('T')[0]}-${resetNonce}`}
-            habit={habit}
-            isCompleted={completedHabitIds.has(habit.id)}
-            metadataValues={habitMetadata[habit.id]}
-            onToggle={toggleHabit}
-            onMetadataChange={handleMetadataChange}
-          />
-        ))}
+        {habits.map(habit => {
+          const streak = data?.streakYesterday?.[habit.id] || 0;
+          const xp_earned = data?.savedXpToday?.[habit.id] ?? calculateCompoundXP(streak, habit.base_xp);
+          return (
+            <HabitCard 
+              key={`${habit.id}-${currentDate.toISOString().split('T')[0]}-${resetNonce}`}
+              habit={habit}
+              isCompleted={completedHabitIds.has(habit.id)}
+              metadataValues={habitMetadata[habit.id]}
+              onToggle={toggleHabit}
+              onMetadataChange={handleMetadataChange}
+              streak={streak}
+              xpEarned={xp_earned}
+            />
+          );
+        })}
         {habits.length === 0 && (
           <div className="text-center text-muted-foreground p-8">
             No habits active for this day.

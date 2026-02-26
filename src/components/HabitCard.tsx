@@ -28,9 +28,11 @@ interface HabitCardProps {
   metadataValues?: Record<string, any>;
   onToggle: (habitId: string, completed: boolean) => void;
   onMetadataChange?: (habitId: string, fieldId: string, value: any) => void;
+  streak?: number;
+  xpEarned?: number;
 }
 
-export function HabitCard({ habit, isCompleted, metadataValues, onToggle, onMetadataChange }: HabitCardProps) {
+export function HabitCard({ habit, isCompleted, metadataValues, onToggle, onMetadataChange, streak, xpEarned }: HabitCardProps) {
   // We use `status` to represent the explicit three states:
   // null = unselected, true = checked (V), false = cross (X)
   const [status, setStatus] = useState<boolean | null>(isCompleted ? true : null);
@@ -65,11 +67,23 @@ export function HabitCard({ habit, isCompleted, metadataValues, onToggle, onMeta
       
       {/* Main Row */}
       <div className="flex items-center justify-between">
-        <span className="font-medium text-[15px] sm:text-base text-foreground pl-1">
-          {habit.name}
-        </span>
+        <div className="flex flex-col">
+          <span className="font-medium text-[15px] sm:text-base text-foreground pl-1">
+            {habit.name}
+          </span>
+          {isCompleted && streak !== undefined && streak > 0 && (
+            <div className="flex items-center gap-1 mt-0.5 pl-1 opacity-80">
+              <span className="text-[10px] font-bold text-orange-400 bg-orange-500/10 px-2 py-0.5 rounded-full whitespace-nowrap">
+                +{Math.round(streak * 5)}% Streak Bonus
+              </span>
+              <span className="text-[10px] font-bold text-muted-foreground whitespace-nowrap">
+                ({xpEarned} XP)
+              </span>
+            </div>
+          )}
+        </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {/* [X] Button */}
           <button 
             onClick={handleSelectCross}
