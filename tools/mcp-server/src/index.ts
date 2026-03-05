@@ -45,6 +45,7 @@ function parseTimeToMinutes(time: string): number {
 }
 
 function calculateFieldMultiplier(field: MetadataField, value: any): number {
+  if (value === undefined || value === null) return 1.0;
   const cfg = field.scoringConfig;
   if (!cfg) return 1.0;
   const min = cfg.minMultiplier ?? 0;
@@ -71,27 +72,23 @@ function calculateFieldMultiplier(field: MetadataField, value: any): number {
 
   if (cfg.mode === "asymmetric") {
     if (cfg.ideal === undefined) return 1.0;
-    const idealMin = parseTimeToMinutes(String(cfg.ideal));
-    const actualMin = parseTimeToMinutes(String(value));
-    const earlyGrace = cfg.earlyGrace ?? 60;
-    const lateGrace = cfg.lateGrace ?? 0;
-    const lateCliff = cfg.lateCliff ?? 60;
-    const deviation = actualMin - idealMin;
-    let multiplier: number;
-    if (deviation < 0) {
-      const earlyAmount = -deviation;
-      multiplier =
-        earlyAmount <= earlyGrace
-          ? 1.0
-          : 1.0 - ((earlyAmount - earlyGrace) / (earlyGrace * 4)) * (1 - min);
-    } else if (deviation <= lateGrace) {
-      multiplier = 1.0;
-    } else if (deviation <= lateCliff) {
-      const range = lateCliff - lateGrace || 1;
-      multiplier = 1.0 - ((deviation - lateGrace) / range) * 0.3;
-    } else {
-      multiplier = 0.7 * Math.exp(-(deviation - lateCliff) / (lateCliff || 60));
-    }
+
+    const idealMin  = parseTimeToMinutes(String(cfg.ideal));
+    let actualMin   = parseTimeToMinutes(String(value));
+
+    if (actualMin < idealMin - 360) actualMin += 1440; // midnight wraparound
+
+    const preAllowance  = cfg.earlyGrace ?? 60;
+    const postAllowance = cfg.lateGrace  ?? 0;
+    const sigma         = cfg.lateCliff  ?? 90;
+    const deviation     = actualMin - idealMin;
+    const allowance     = deviation < 0 ? preAllowance : postAllowance;
+
+    if (Math.abs(deviation) <= allowance) return 1.0;
+
+    const excess    = Math.abs(deviation) - allowance;
+    const sigmaTrue = sigma / Math.sqrt(2 * Math.LN2);
+    const multiplier = Math.exp(-(excess * excess) / (2 * sigmaTrue * sigmaTrue));
     return clamp(multiplier, min, 1.0);
   }
 
@@ -156,6 +153,23 @@ function calculateHabitXP(
   return habit.type === "negative" ? -rawXP : rawXP;
 }
 
+function applyMetadataDefaults(
+  schema: MetadataField[],
+  values: Record<string, any>
+): Record<string, any> {
+  const result = { ...values };
+  const typeDefaults: Record<string, any> = {
+    number: 0, duration: 0, boolean: false, time: "00:00", string: "",
+  };
+  for (const field of schema) {
+    if (result[field.id] !== undefined) continue;
+    result[field.id] = (field as any).defaultValue !== undefined
+      ? (field as any).defaultValue
+      : (typeDefaults[field.type] ?? null);
+  }
+  return result;
+}
+
 function calculateStreakFreezers(
   totalConsecutiveDays: number,
   currentFreezers: number,
@@ -186,6 +200,33 @@ function daysBefore(dateStr: string, n: number): Date {
   d.setUTCDate(d.getUTCDate() - n);
   return d;
 }
+
+// ── Zod schemas for metadata_schema validation ────────────────────────────────
+
+const ScoringTierSchema = z.object({
+  upTo: z.union([z.number(), z.string()]),
+  multiplier: z.number().min(0).max(2),
+});
+
+const ScoringConfigSchema = z.object({
+  mode: z.enum(["linear", "logarithmic", "exponential", "asymmetric", "tiered"]),
+  ideal: z.union([z.string(), z.number()]).optional(),
+  worst: z.union([z.string(), z.number()]).optional(),
+  earlyGrace: z.number().min(0).optional(),
+  lateGrace: z.number().min(0).optional(),
+  lateCliff: z.number().min(0).optional(),
+  tiers: z.array(ScoringTierSchema).optional(),
+  minMultiplier: z.number().min(0).max(1).optional(),
+});
+
+const MetadataFieldSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  type: z.enum(["number", "time", "boolean", "string", "duration"]),
+  defaultValue: z.any().optional(),
+  unit: z.string().optional(),
+  scoringConfig: ScoringConfigSchema.optional(),
+});
 
 // ── MCP Server ────────────────────────────────────────────────────────────────
 
@@ -239,7 +280,7 @@ server.tool(
       .array(z.number().int().min(0).max(6))
       .optional()
       .describe("Days of week: 0=Sun…6=Sat. Omit for every day."),
-    metadata_schema: z.array(z.any()).optional().describe(
+    metadata_schema: z.array(MetadataFieldSchema).optional().describe(
       "Optional custom tracking field definitions"
     ),
   },
@@ -273,7 +314,7 @@ server.tool(
     type: z.enum(["positive", "negative"]).optional(),
     base_xp: z.number().min(5).optional(),
     frequency: z.array(z.number().int().min(0).max(6)).nullable().optional(),
-    metadata_schema: z.array(z.any()).nullable().optional(),
+    metadata_schema: z.array(MetadataFieldSchema).nullable().optional(),
   },
   async ({ habit_id, user_id, ...updates }) => {
     const { data, error } = await supabase
@@ -385,12 +426,13 @@ server.tool(
     const logsToInsert = completions.map(({ habit_id, metadata_values = {} }) => {
       const habit = habitMap.get(habit_id) as any;
       if (!habit) throw new Error(`Habit ${habit_id} not found for user ${user_id}`);
+      const filledValues = applyMetadataDefaults(habit.metadata_schema ?? [], metadata_values);
       return {
         user_id,
         habit_id,
         date,
-        metadata_values,
-        xp_earned: calculateHabitXP(habit, metadata_values, streakFor(habit_id)),
+        metadata_values: filledValues,
+        xp_earned: calculateHabitXP(habit, filledValues, streakFor(habit_id)),
       };
     });
 
@@ -493,11 +535,18 @@ server.tool(
       .eq("user_id", user_id)
       .maybeSingle();
 
-    const { newFreezers } = calculateStreakFreezers(
-      streak,
-      userStats?.freeze_count ?? 0,
-      userStats?.rewarded_weeks ?? 0
-    );
+    const currentFreeze   = userStats?.freeze_count   ?? 0;
+    const currentRewarded = userStats?.rewarded_weeks ?? 0;
+    const { newFreezers, newRewardedWeeks } = calculateStreakFreezers(streak, currentFreeze, currentRewarded);
+
+    if (newFreezers !== currentFreeze || newRewardedWeeks !== currentRewarded) {
+      await supabase.from("user_stats").upsert({
+        user_id,
+        freeze_count:   newFreezers,
+        rewarded_weeks: newRewardedWeeks,
+        updated_at:     new Date().toISOString(),
+      });
+    }
 
     const sevenDaysAgo = toDateStr(daysBefore(toDateStr(new Date()), 7));
     let weekXp = 0;
@@ -529,6 +578,209 @@ server.tool(
       .maybeSingle();
     if (error) throw new Error(error.message);
     return ok(data ?? { user_id, freeze_count: 0, rewarded_weeks: 0 });
+  }
+);
+
+// ── update_user_stats ─────────────────────────────────────────────────────────
+
+server.tool(
+  "update_user_stats",
+  "Read and write a user's streak freeze inventory. Use to consume a freeze (decrement freeze_count) or correct data. Only the fields you provide will be changed.",
+  {
+    user_id: z.string(),
+    freeze_count: z.number().int().min(0).max(3).optional().describe("0–3 available streak freezers"),
+    rewarded_weeks: z.number().int().min(0).optional().describe("Total weeks already rewarded with a freezer"),
+  },
+  async ({ user_id, freeze_count, rewarded_weeks }) => {
+    const { data: current, error: fetchError } = await supabase
+      .from("user_stats")
+      .select("freeze_count, rewarded_weeks")
+      .eq("user_id", user_id)
+      .maybeSingle();
+    if (fetchError) throw new Error(fetchError.message);
+
+    const merged = {
+      user_id,
+      freeze_count:   freeze_count   ?? current?.freeze_count   ?? 0,
+      rewarded_weeks: rewarded_weeks ?? current?.rewarded_weeks ?? 0,
+      updated_at:     new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+      .from("user_stats")
+      .upsert(merged)
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return ok({ message: "User stats updated.", user_stats: data });
+  }
+);
+
+// ── get_scoring_guide ─────────────────────────────────────────────────────────
+
+server.tool(
+  "get_scoring_guide",
+  "Returns a complete JSON reference guide for building metadata_schema fields with scoringConfig. No DB calls — instant reference.",
+  {},
+  async () => {
+    const guide = {
+      overview: "metadata_schema is an array of MetadataField objects. Each field can have an optional scoringConfig that maps a logged value to a multiplier (0–1.0) applied to base_xp.",
+      typeRules: {
+        number: "Numeric value (e.g. reps, pages, glasses of water)",
+        time: "String in HH:MM format (e.g. \"22:30\"). All time scoring uses minutes-since-midnight internally.",
+        boolean: "true/false — use tiered mode with tiers [{upTo:0,multiplier:0},{upTo:1,multiplier:1}]",
+        string: "Free text — no scoring config supported (scoringConfig ignored)",
+        duration: "Total minutes as a number (e.g. 90 = 1h30m). Use linear/logarithmic/exponential modes.",
+      },
+      fieldExamples: {
+        number: {
+          id: "reps", label: "Reps", type: "number", unit: "reps",
+          scoringConfig: { mode: "linear", ideal: 20, worst: 0 },
+        },
+        time: {
+          id: "bed_time", label: "Bed Time", type: "time",
+          scoringConfig: { mode: "asymmetric", ideal: "22:00", earlyGrace: 60, lateGrace: 0, lateCliff: 90 },
+        },
+        boolean: {
+          id: "did_stretch", label: "Did Stretch?", type: "boolean",
+          scoringConfig: { mode: "tiered", tiers: [{ upTo: 0, multiplier: 0 }, { upTo: 1, multiplier: 1 }] },
+        },
+        string: {
+          id: "notes", label: "Notes", type: "string",
+          // no scoringConfig — strings cannot be scored
+        },
+        duration: {
+          id: "sleep_minutes", label: "Sleep Duration", type: "duration", unit: "min",
+          scoringConfig: { mode: "logarithmic", ideal: 480, worst: 0, minMultiplier: 0.1 },
+        },
+      },
+      scoringModes: {
+        linear: {
+          description: "Straight line between worst (0%) and ideal (100%).",
+          requiredFields: ["ideal", "worst"],
+          example: { mode: "linear", ideal: 10000, worst: 0 },
+        },
+        logarithmic: {
+          description: "Fast gains at low values, diminishing returns toward ideal. Good for sleep, steps.",
+          requiredFields: ["ideal", "worst"],
+          example: { mode: "logarithmic", ideal: 480, worst: 0 },
+        },
+        exponential: {
+          description: "Slow start, accelerating gains near ideal. Good for streaks or effort that compounds.",
+          requiredFields: ["ideal", "worst"],
+          example: { mode: "exponential", ideal: 100, worst: 0 },
+        },
+        asymmetric: {
+          description: "Gaussian bell curve with a flat plateau. Designed for time-of-day habits where both too-early and too-late are penalized, but differently.",
+          requiredFields: ["ideal"],
+          optionalFields: {
+            earlyGrace: "Minutes before ideal that still score 1.0. Default: 60.",
+            lateGrace: "Minutes after ideal that still score 1.0. Default: 0.",
+            lateCliff: "Minutes past the plateau edge where XP drops to ~50%. Implemented as Gaussian sigma calibrated so excess=lateCliff → 0.5 multiplier. Default: 90.",
+            minMultiplier: "Floor for the multiplier. Default: 0.",
+          },
+          mathNote: "excess = |deviation| - allowance; sigmaTrue = lateCliff / sqrt(2*ln2); multiplier = exp(-(excess²)/(2*sigmaTrue²))",
+          examples: [
+            { scenario: "Bed time 22:00, 30min early grace, no late grace, cliff at 90min", config: { mode: "asymmetric", ideal: "22:00", earlyGrace: 30, lateGrace: 0, lateCliff: 90 } },
+            { scenario: "Wake up 07:00, symmetric 30min grace each side", config: { mode: "asymmetric", ideal: "07:00", earlyGrace: 30, lateGrace: 30, lateCliff: 60 } },
+          ],
+        },
+        tiered: {
+          description: "Step-function lookup. First tier whose upTo >= value wins. Use 'Infinity' for the catch-all last tier.",
+          requiredFields: ["tiers"],
+          example: {
+            mode: "tiered",
+            tiers: [
+              { upTo: 2000, multiplier: 0.3 },
+              { upTo: 5000, multiplier: 0.6 },
+              { upTo: 10000, multiplier: 1.0 },
+              { upTo: "Infinity", multiplier: 1.5 },
+            ],
+          },
+        },
+      },
+      multiFieldExample: {
+        description: "A workout habit with scored duration + scored reps + unscored notes",
+        metadata_schema: [
+          { id: "duration_min", label: "Duration", type: "duration", unit: "min", scoringConfig: { mode: "linear", ideal: 60, worst: 0 } },
+          { id: "reps", label: "Reps", type: "number", unit: "reps", scoringConfig: { mode: "logarithmic", ideal: 50, worst: 0, minMultiplier: 0.2 } },
+          { id: "notes", label: "Notes", type: "string" },
+        ],
+        note: "XP multiplier = average of all fields that have a scoringConfig (duration + reps here). 'notes' is ignored in scoring.",
+      },
+    };
+    return ok(guide);
+  }
+);
+
+// ── get_due_habits ────────────────────────────────────────────────────────────
+
+server.tool(
+  "get_due_habits",
+  "Returns habits scheduled for a given date with suggested optimal values for each metadata field. Use this before log_day to know exactly what to log and what metadata values will maximize XP.",
+  {
+    user_id: z.string(),
+    date: z.string().optional().describe("yyyy-MM-dd, defaults to today"),
+  },
+  async ({ user_id, date }) => {
+    const targetDate = date ?? toDateStr(new Date());
+    const dayOfWeek = new Date(targetDate + "T12:00:00Z").getUTCDay(); // 0=Sun…6=Sat
+
+    const { data: habits, error } = await supabase
+      .from("habits")
+      .select("*")
+      .eq("user_id", user_id);
+    if (error) throw new Error(error.message);
+
+    const { data: existingLogs } = await supabase
+      .from("habit_logs")
+      .select("habit_id, xp_earned, metadata_values")
+      .eq("user_id", user_id)
+      .eq("date", targetDate);
+    const loggedMap = new Map((existingLogs ?? []).map((l: any) => [l.habit_id, l]));
+
+    const due = (habits ?? []).filter((h: any) => {
+      if (!h.frequency || !Array.isArray(h.frequency)) return true;
+      return h.frequency.includes(dayOfWeek);
+    });
+
+    const typeDefaults: Record<string, any> = {
+      number: 0, duration: 0, boolean: false, time: "00:00", string: "",
+    };
+
+    const result = due.map((h: any) => {
+      const schema: MetadataField[] = h.metadata_schema ?? [];
+      const suggestedValues: Record<string, any> = {};
+      const defaultValues: Record<string, any> = {};
+
+      for (const field of schema) {
+        const cfg = field.scoringConfig as ScoringConfig | undefined;
+        if (cfg?.ideal !== undefined) {
+          suggestedValues[field.id] = cfg.ideal;
+        } else if (cfg?.mode === "tiered" && cfg.tiers?.length) {
+          const lastFiniteTier = [...cfg.tiers].reverse().find(
+            (t) => t.upTo !== "Infinity" && t.upTo !== Infinity
+          );
+          if (lastFiniteTier) suggestedValues[field.id] = lastFiniteTier.upTo;
+        }
+        defaultValues[field.id] = (field as any).defaultValue !== undefined
+          ? (field as any).defaultValue
+          : (typeDefaults[field.type] ?? null);
+      }
+
+      return {
+        habit_id: h.id,
+        name: h.name,
+        type: h.type,
+        base_xp: h.base_xp,
+        metadata_schema: schema,
+        suggestedValues,
+        defaultValues,
+        alreadyLogged: loggedMap.has(h.id) ? loggedMap.get(h.id) : null,
+      };
+    });
+
+    return ok({ date: targetDate, dayOfWeek, dueHabits: result });
   }
 );
 
