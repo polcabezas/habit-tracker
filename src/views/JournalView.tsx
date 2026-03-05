@@ -23,7 +23,7 @@ export function JournalView() {
 
   // 1. Fetch data query
   const { data } = useQuery({
-    queryKey: ['journal', currentDate.toISOString().split('T')[0]],
+    queryKey: ['journal', format(currentDate, 'yyyy-MM-dd')],
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
       const userId = session?.user?.id;
@@ -69,7 +69,7 @@ export function JournalView() {
       const initialMetadata: Record<string, Record<string, any>> = {};
       const loggedDates = new Set<string>();
 
-      const dateStr = currentDate.toISOString().split('T')[0];
+      const dateStr = format(currentDate, 'yyyy-MM-dd');
       const logsByHabit = new Map<string, Set<string>>();
       const savedXpToday: Record<string, number> = {};
 
@@ -195,8 +195,9 @@ export function JournalView() {
       const habit = habits.find(h => h.id === id);
       if (habit) {
         const streak = data?.streakYesterday?.[id] || 0;
-        const xpAmount = data?.savedXpToday?.[id] ?? calculateCompoundXP(streak, habit.base_xp);
-        setDailyScore(prevScore => prevScore + (completed ? xpAmount : -xpAmount));
+        const signedXp = data?.savedXpToday?.[id] ??
+          (habit.type === 'negative' ? -calculateCompoundXP(streak, habit.base_xp) : calculateCompoundXP(streak, habit.base_xp));
+        setDailyScore(prevScore => prevScore + (completed ? signedXp : -signedXp));
       }
 
       return newSet;
@@ -257,7 +258,7 @@ export function JournalView() {
       const userId = session?.user?.id;
       if (!userId) throw new Error("Must be logged in to save.");
 
-      const dateStr = currentDate.toISOString().split('T')[0];
+      const dateStr = format(currentDate, 'yyyy-MM-dd');
 
       await supabase
         .from('habit_logs')
@@ -269,7 +270,9 @@ export function JournalView() {
         const habit = habits.find(h => h.id === habitId);
         const base_xp = habit?.base_xp || 10;
         const streak = data?.streakYesterday?.[habitId] || 0;
-        const xp_earned = calculateCompoundXP(streak, base_xp);
+        const xp_earned = habit?.type === 'negative'
+          ? -calculateCompoundXP(streak, base_xp)
+          : calculateCompoundXP(streak, base_xp);
 
         return {
           user_id: userId,
@@ -285,8 +288,11 @@ export function JournalView() {
          if (error) throw error;
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['journal'] });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['journal'] }),
+        queryClient.invalidateQueries({ queryKey: ['stats'] }),
+      ]);
       fireConfetti();
     },
     onError: (err) => {
@@ -301,7 +307,7 @@ export function JournalView() {
       const userId = session?.user?.id;
       if (!userId) throw new Error("Must be logged in to clear.");
 
-      const dateStr = currentDate.toISOString().split('T')[0];
+      const dateStr = format(currentDate, 'yyyy-MM-dd');
 
       const { error } = await supabase
         .from('habit_logs')
@@ -340,7 +346,7 @@ export function JournalView() {
       
       let score = 0;
       data.habits.forEach(h => {
-        if (data.completedIds.has(h.id)) score += h.base_xp;
+        if (data.completedIds.has(h.id)) score += calculateCompoundXP(data.streakYesterday?.[h.id] || 0, h.base_xp);
       });
       setDailyScore(score);
       setResetNonce(prev => prev + 1);
@@ -376,10 +382,11 @@ export function JournalView() {
       <section className="flex flex-col pb-8">
         {habits.map(habit => {
           const streak = data?.streakYesterday?.[habit.id] || 0;
-          const xp_earned = data?.savedXpToday?.[habit.id] ?? calculateCompoundXP(streak, habit.base_xp);
+          const xp_earned = data?.savedXpToday?.[habit.id] ??
+            (habit.type === 'negative' ? -calculateCompoundXP(streak, habit.base_xp) : calculateCompoundXP(streak, habit.base_xp));
           return (
             <HabitCard 
-              key={`${habit.id}-${currentDate.toISOString().split('T')[0]}-${resetNonce}`}
+              key={`${habit.id}-${format(currentDate, 'yyyy-MM-dd')}-${resetNonce}`}
               habit={habit}
               isCompleted={completedHabitIds.has(habit.id)}
               metadataValues={habitMetadata[habit.id]}

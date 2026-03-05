@@ -1,24 +1,26 @@
 import { Flame, Snowflake, Trophy, TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useState, useMemo } from 'react';
 import { AnimatedNumber } from '@/components/AnimatedNumber';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { 
-  subDays, 
-  format, 
-  isSameDay, 
-  startOfWeek, 
-  endOfWeek, 
-  startOfMonth, 
-  endOfMonth, 
-  startOfYear, 
+import {
+  subDays,
+  addDays,
+  format,
+  isSameDay,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  startOfYear,
   endOfYear,
   subWeeks,
   subMonths,
   subYears,
   differenceInDays,
-  isWithinInterval
+  isWithinInterval,
+  parseISO
 } from 'date-fns';
 
 export function StatsView() {
@@ -63,7 +65,7 @@ export function StatsView() {
         let total = 0;
         const days = Math.max(1, differenceInDays(end, start) + 1);
         dailyXp.forEach((xp, dateStr) => {
-          const d = new Date(dateStr);
+          const d = parseISO(dateStr);
           if (isWithinInterval(d, { start, end })) {
             total += xp;
           }
@@ -120,19 +122,25 @@ export function StatsView() {
   // Calculate Chart Data based on activeTab
   const chartData = useMemo(() => {
     if (!stats) return [];
-    
-    const daysToShow = activeTab === '7d' ? 7 : activeTab === '30d' ? 30 : 90;
+
     const data = [];
-    
-    for (let i = daysToShow - 1; i >= 0; i--) {
-      const d = subDays(new Date(), i);
-      const dateStr = format(d, 'yyyy-MM-dd');
-      data.push({
-        name: format(d, daysToShow <= 7 ? 'EEE' : 'MMM d'), // e.g., 'Mon' or 'Oct 12'
-        xp: stats.dailyXp.get(dateStr) || 0,
-      });
+
+    if (activeTab === '7d') {
+      const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+      for (let i = 0; i < 7; i++) {
+        const d = addDays(weekStart, i);
+        const dateStr = format(d, 'yyyy-MM-dd');
+        data.push({ name: format(d, 'EEE'), xp: stats.dailyXp.get(dateStr) || 0 });
+      }
+    } else {
+      const daysToShow = activeTab === '30d' ? 30 : 90;
+      for (let i = daysToShow - 1; i >= 0; i--) {
+        const d = subDays(new Date(), i);
+        const dateStr = format(d, 'yyyy-MM-dd');
+        data.push({ name: format(d, 'MMM d'), xp: stats.dailyXp.get(dateStr) || 0 });
+      }
     }
-    
+
     return data;
   }, [stats, activeTab]);
 
@@ -150,7 +158,7 @@ export function StatsView() {
         
         <div className="bg-card border border-border rounded-[24px] p-4 flex items-center justify-center gap-3 shadow-sm relative group cursor-pointer">
           <Snowflake className="w-6 h-6 text-blue-400 group-hover:scale-110 transition-transform" />
-          <div className="text-xl font-bold"><AnimatedNumber value={2} /></div>
+          <div className="text-xl font-bold"><AnimatedNumber value={Math.min(3, Math.floor((stats?.streak || 0) / 7))} /></div>
         </div>
       </div>
 
@@ -215,25 +223,33 @@ export function StatsView() {
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <XAxis 
-                  dataKey="name" 
+              <LineChart data={chartData} margin={{ left: 10, right: 10 }}>
+                <XAxis
+                  dataKey="name"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                  tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }}
                   dy={10}
+                  padding={{ left: 10, right: 10 }}
                 />
-                <Tooltip 
-                  cursor={{ fill: 'hsl(var(--secondary))' }}
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                <Tooltip
+                  cursor={{ stroke: 'var(--secondary)', strokeWidth: 1, strokeDasharray: "4 4" }}
+                  contentStyle={{ borderRadius: '12px', border: '1px solid var(--border)', backgroundColor: 'var(--card)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                  labelStyle={{ color: 'var(--foreground)' }}
+                  itemStyle={{ color: 'var(--foreground)' }}
                 />
-                <Bar 
+                <Line 
+                  type="monotone"
                   dataKey="xp" 
-                  fill="hsl(var(--primary))" 
-                  radius={[4, 4, 4, 4]} 
-                  barSize={activeTab === '7d' ? 30 : activeTab === '30d' ? 8 : 4}
+                  stroke="#60a5fa" 
+                  strokeWidth={3}
+                  dot={{ fill: "hsl(var(--card))", stroke: "#60a5fa", strokeWidth: 2, r: 4 }}
+                  activeDot={{ r: 6, fill: "#60a5fa", stroke: "hsl(var(--card))", strokeWidth: 2 }}
+                  isAnimationActive={true}
+                  animationDuration={1500}
+                  animationEasing="ease-out"
                 />
-              </BarChart>
+              </LineChart>
             </ResponsiveContainer>
           )}
         </div>

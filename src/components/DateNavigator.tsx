@@ -211,7 +211,7 @@ export function DateNavigator({ currentDate, onPrevDay, onNextDay, onSelectDate,
         >
           {dateRange.map((date, idx) => {
             const isSelected = isSameDay(date, currentDate);
-            const dateStr = date.toISOString().split('T')[0];
+            const dateStr = format(date, 'yyyy-MM-dd');
             const hasData = loggedDates?.has(dateStr);
             return (
               <button

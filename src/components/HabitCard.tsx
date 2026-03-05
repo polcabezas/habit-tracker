@@ -73,11 +73,18 @@ export function HabitCard({ habit, isCompleted, metadataValues, onToggle, onMeta
           </span>
           {isCompleted && streak !== undefined && streak > 0 && (
             <div className="flex items-center gap-1 mt-0.5 pl-1 opacity-80">
-              <span className="text-[10px] font-bold text-orange-400 bg-orange-500/10 px-2 py-0.5 rounded-full whitespace-nowrap">
-                +{Math.round(streak * 5)}% Streak Bonus
+              <span className={cn(
+                "text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap",
+                habit.type === 'negative'
+                  ? "text-destructive bg-destructive/10"
+                  : "text-orange-400 bg-orange-500/10"
+              )}>
+                {habit.type === 'negative'
+                  ? `-${Math.round(streak * 5)}% XP Penalty`
+                  : `+${Math.round(streak * 5)}% Streak Bonus`}
               </span>
               <span className="text-[10px] font-bold text-muted-foreground whitespace-nowrap">
-                ({xpEarned} XP)
+                ({habit.type === 'negative' ? '-' : ''}{Math.abs(xpEarned ?? 0)} XP)
               </span>
             </div>
           )}
