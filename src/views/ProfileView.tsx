@@ -1,4 +1,4 @@
-import { Moon, Sun, Monitor, Plus, Settings, Trash2, LogOut, ListChecks } from 'lucide-react';
+import { Moon, Sun, Monitor, Plus, Settings, Trash2, LogOut, ListChecks, Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { useTheme } from '@/components/ThemeProvider';
 import type { MetadataField, MetadataFieldType, ScoringConfig, ScoringMode } from '@/components/HabitCard';
@@ -19,6 +19,7 @@ export function ProfileView() {
   const [baseXp, setBaseXp] = useState(10);
   const [metadataSchema, setMetadataSchema] = useState<MetadataField[]>([]);
   const [frequency, setFrequency] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
+  const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
 
   // Fetch current user's habits
   const habitsQuery = useQuery({
@@ -73,6 +74,25 @@ export function ProfileView() {
     setMetadataSchema(metadataSchema.filter(f => f.id !== id));
   };
 
+  const handleCancelEdit = () => {
+    setEditingHabit(null);
+    setHabitName('');
+    setHabitType('positive');
+    setBaseXp(10);
+    setMetadataSchema([]);
+    setFrequency([0, 1, 2, 3, 4, 5, 6]);
+  };
+
+  const handleEditClick = (habit: Habit) => {
+    setEditingHabit(habit);
+    setHabitName(habit.name);
+    setHabitType(habit.type);
+    setBaseXp(habit.base_xp);
+    setMetadataSchema(habit.metadataSchema ?? []);
+    setFrequency(habit.frequency ?? [0, 1, 2, 3, 4, 5, 6]);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const createHabitMutation = useMutation({
     mutationFn: async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -94,13 +114,42 @@ export function ProfileView() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['habits'] });
-      setHabitName('');
-      setMetadataSchema([]);
-      setFrequency([0, 1, 2, 3, 4, 5, 6]);
+      handleCancelEdit();
     },
     onError: (err) => {
       console.error('Error adding habit:', err);
       alert('Failed to add habit: ' + err.message);
+    }
+  });
+
+  const updateHabitMutation = useMutation({
+    mutationFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId || !editingHabit) throw new Error("Must be logged in to update a habit.");
+
+      const { error } = await supabase
+        .from('habits')
+        .update({
+          name: habitName,
+          type: habitType,
+          base_xp: Number(baseXp),
+          metadata_schema: metadataSchema.length > 0 ? (metadataSchema as any) : null,
+          frequency: frequency
+        })
+        .eq('id', editingHabit.id)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['habits'] });
+      queryClient.invalidateQueries({ queryKey: ['journal'] });
+      handleCancelEdit();
+    },
+    onError: (err) => {
+      console.error('Error updating habit:', err);
+      alert('Failed to update habit: ' + err.message);
     }
   });
 
@@ -131,7 +180,11 @@ export function ProfileView() {
 
   const handleAddHabit = (e: React.FormEvent) => {
     e.preventDefault();
-    createHabitMutation.mutate();
+    if (editingHabit) {
+      updateHabitMutation.mutate();
+    } else {
+      createHabitMutation.mutate();
+    }
   };
 
   return (
@@ -142,9 +195,9 @@ export function ProfileView() {
       <div className="bg-card border border-border rounded-[32px] p-6 shadow-sm mb-2">
         <div className="flex items-center gap-2 mb-6">
           <div className="bg-primary/10 p-2 rounded-full text-foreground">
-            <Plus className="w-5 h-5" strokeWidth={2.5} />
+            {editingHabit ? <Pencil className="w-5 h-5" strokeWidth={2.5} /> : <Plus className="w-5 h-5" strokeWidth={2.5} />}
           </div>
-          <h3 className="font-bold text-lg text-foreground">Create New Habit</h3>
+          <h3 className="font-bold text-lg text-foreground">{editingHabit ? 'Edit Habit' : 'Create New Habit'}</h3>
         </div>
         
         <form onSubmit={handleAddHabit} className="flex flex-col gap-4">
@@ -493,13 +546,26 @@ export function ProfileView() {
             </div>
           </div>
 
-          <button 
-            type="submit" 
-            disabled={createHabitMutation.isPending || !habitName || frequency.length === 0}
-            className="mt-4 w-full bg-primary text-primary-foreground font-black uppercase tracking-widest text-sm rounded-full py-3.5 hover:scale-[1.02] active:scale-95 disabled:opacity-50 transition-all shadow-md"
-          >
-            {createHabitMutation.isPending ? 'Creating...' : 'Add Habit'}
-          </button>
+          <div className="flex gap-2 mt-4">
+            {editingHabit && (
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="flex-1 bg-secondary text-foreground font-black uppercase tracking-widest text-sm rounded-full py-3.5 hover:bg-secondary/80 active:scale-95 transition-all"
+              >
+                Cancel
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={createHabitMutation.isPending || updateHabitMutation.isPending || !habitName || frequency.length === 0}
+              className="flex-1 bg-primary text-primary-foreground font-black uppercase tracking-widest text-sm rounded-full py-3.5 hover:scale-[1.02] active:scale-95 disabled:opacity-50 transition-all shadow-md"
+            >
+              {editingHabit
+                ? (updateHabitMutation.isPending ? 'Saving...' : 'Save Changes')
+                : (createHabitMutation.isPending ? 'Creating...' : 'Add Habit')}
+            </button>
+          </div>
         </form>
       </div>
 
@@ -529,14 +595,23 @@ export function ProfileView() {
                     </span>
                   </div>
                 </div>
-                <button 
-                  disabled={deleteHabitMutation.isPending}
-                  onClick={() => deleteHabitMutation.mutate(habit.id)}
-                  className="p-2 text-muted-foreground hover:text-destructive hover:bg-secondary rounded-xl transition-colors disabled:opacity-50"
-                  aria-label="Delete habit"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleEditClick(habit)}
+                    className="p-2 text-muted-foreground hover:text-primary hover:bg-secondary rounded-xl transition-colors"
+                    aria-label="Edit habit"
+                  >
+                    <Pencil className="w-5 h-5" />
+                  </button>
+                  <button
+                    disabled={deleteHabitMutation.isPending}
+                    onClick={() => deleteHabitMutation.mutate(habit.id)}
+                    className="p-2 text-muted-foreground hover:text-destructive hover:bg-secondary rounded-xl transition-colors disabled:opacity-50"
+                    aria-label="Delete habit"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
