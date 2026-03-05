@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import { AnimatedNumber } from '@/components/AnimatedNumber';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { calculateStreakFreezers } from '@/lib/scoring';
 import {
   subDays,
   addDays,
@@ -108,9 +109,31 @@ export function StatsView() {
         }
       }
 
-      return { 
-        allTimeXp, 
-        streak, 
+      const { data: userStats } = await supabase
+        .from('user_stats')
+        .select('freeze_count, rewarded_weeks')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      const { newFreezers, newRewardedWeeks } = calculateStreakFreezers(
+        streak,
+        userStats?.freeze_count ?? 0,
+        userStats?.rewarded_weeks ?? 0
+      );
+
+      if (newFreezers !== (userStats?.freeze_count ?? 0) || newRewardedWeeks !== (userStats?.rewarded_weeks ?? 0)) {
+        await supabase.from('user_stats').upsert({
+          user_id: userId,
+          freeze_count: newFreezers,
+          rewarded_weeks: newRewardedWeeks,
+          updated_at: new Date().toISOString()
+        });
+      }
+
+      return {
+        allTimeXp,
+        streak,
+        freezeCount: newFreezers,
         dailyXp,
         avgWeek, diffWeek: calcDiff(avgWeek, prevAvgWeek),
         avgMonth, diffMonth: calcDiff(avgMonth, prevAvgMonth),
@@ -158,7 +181,7 @@ export function StatsView() {
         
         <div className="bg-card border border-border rounded-[24px] p-4 flex items-center justify-center gap-3 shadow-sm relative group cursor-pointer">
           <Snowflake className="w-6 h-6 text-blue-400 group-hover:scale-110 transition-transform" />
-          <div className="text-xl font-bold"><AnimatedNumber value={Math.min(3, Math.floor((stats?.streak || 0) / 7))} /></div>
+          <div className="text-xl font-bold"><AnimatedNumber value={stats?.freezeCount ?? 0} /></div>
         </div>
       </div>
 
@@ -175,7 +198,7 @@ export function StatsView() {
           </div>
           
           <div className="inline-flex mt-2 items-center px-3 py-1 rounded-full text-xs font-bold bg-primary text-primary-foreground shadow-sm">
-            Level {Math.floor((stats?.allTimeXp || 0) / 100) + 1} Tracker
+            Level {Math.floor((stats?.allTimeXp || 0) / 100) + 1}
           </div>
         </div>
       </div>

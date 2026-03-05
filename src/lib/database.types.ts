@@ -95,6 +95,12 @@ export interface Database {
           }
         ]
       }
+      user_stats: {
+        Row: { user_id: string; freeze_count: number; rewarded_weeks: number; updated_at: string }
+        Insert: { user_id: string; freeze_count?: number; rewarded_weeks?: number; updated_at?: string }
+        Update: { freeze_count?: number; rewarded_weeks?: number; updated_at?: string }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
