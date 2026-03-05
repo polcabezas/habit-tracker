@@ -5,12 +5,35 @@ import { useState, useEffect } from 'react';
 // --- Types ---
 export type MetadataFieldType = 'number' | 'time' | 'boolean' | 'string' | 'duration';
 
+export type ScoringMode = 'linear' | 'logarithmic' | 'exponential' | 'asymmetric' | 'tiered';
+
+export interface ScoringTier {
+  upTo: string | number;  // exclusive upper bound; Infinity / "23:59" for last tier
+  multiplier: number;     // 0.0–1.0
+}
+
+export interface ScoringConfig {
+  mode: ScoringMode;
+  // linear / logarithmic / exponential:
+  ideal?: string | number;
+  worst?: string | number;
+  // asymmetric (time fields — earlier is better):
+  earlyGrace?: number;    // minutes early still scoring 1.0 (default: 60)
+  lateGrace?: number;     // minutes late still scoring 1.0 (default: 0)
+  lateCliff?: number;     // minutes late where penalty steepens (default: 60)
+  // tiered:
+  tiers?: ScoringTier[];
+  // common:
+  minMultiplier?: number; // XP floor, e.g. 0.1 = never less than 10% (default: 0)
+}
+
 export interface MetadataField {
   id: string;
   label: string;
   type: MetadataFieldType;
   defaultValue?: any;
   unit?: string; // e.g. "grams"
+  scoringConfig?: ScoringConfig;
 }
 
 export interface Habit {
@@ -30,9 +53,10 @@ interface HabitCardProps {
   onMetadataChange?: (habitId: string, fieldId: string, value: any) => void;
   streak?: number;
   xpEarned?: number;
+  gradientMultiplier?: number;
 }
 
-export function HabitCard({ habit, isCompleted, metadataValues, onToggle, onMetadataChange, streak, xpEarned }: HabitCardProps) {
+export function HabitCard({ habit, isCompleted, metadataValues, onToggle, onMetadataChange, streak, xpEarned, gradientMultiplier }: HabitCardProps) {
   // We use `status` to represent the explicit three states:
   // null = unselected, true = checked (V), false = cross (X)
   const [status, setStatus] = useState<boolean | null>(isCompleted ? true : null);
@@ -59,6 +83,7 @@ export function HabitCard({ habit, isCompleted, metadataValues, onToggle, onMeta
   };
 
   const hasMetadata = habit.metadataSchema && habit.metadataSchema.length > 0;
+  const hasScoredFields = habit.metadataSchema?.some(f => f.scoringConfig) ?? false;
   // Expand only if the user explicitly clicked Check [V] and there is metadata
   const isExpanded = status === true && hasMetadata;
 
@@ -71,18 +96,32 @@ export function HabitCard({ habit, isCompleted, metadataValues, onToggle, onMeta
           <span className="font-medium text-[15px] sm:text-base text-foreground pl-1">
             {habit.name}
           </span>
-          {isCompleted && streak !== undefined && streak > 0 && (
-            <div className="flex items-center gap-1 mt-0.5 pl-1 opacity-80">
-              <span className={cn(
-                "text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap",
-                habit.type === 'negative'
-                  ? "text-destructive bg-destructive/10"
-                  : "text-orange-400 bg-orange-500/10"
-              )}>
-                {habit.type === 'negative'
-                  ? `-${Math.round(streak * 5)}% XP Penalty`
-                  : `+${Math.round(streak * 5)}% Streak Bonus`}
-              </span>
+          {isCompleted && (streak !== undefined && streak > 0 || (hasScoredFields && gradientMultiplier !== undefined)) && (
+            <div className="flex items-center gap-1 mt-0.5 pl-1 opacity-80 flex-wrap">
+              {streak !== undefined && streak > 0 && (
+                <span className={cn(
+                  "text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap",
+                  habit.type === 'negative'
+                    ? "text-destructive bg-destructive/10"
+                    : "text-orange-400 bg-orange-500/10"
+                )}>
+                  {habit.type === 'negative'
+                    ? `-${Math.round(streak * 5)}% XP Penalty`
+                    : `+${Math.round(streak * 5)}% Streak Bonus`}
+                </span>
+              )}
+              {hasScoredFields && gradientMultiplier !== undefined && (
+                <span className={cn(
+                  "text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap",
+                  gradientMultiplier >= 0.8
+                    ? "text-emerald-500 bg-emerald-500/10"
+                    : gradientMultiplier >= 0.5
+                    ? "text-yellow-500 bg-yellow-500/10"
+                    : "text-red-400 bg-red-400/10"
+                )}>
+                  Quality: {Math.round(gradientMultiplier * 100)}%
+                </span>
+              )}
               <span className="text-[10px] font-bold text-muted-foreground whitespace-nowrap">
                 ({habit.type === 'negative' ? '-' : ''}{Math.abs(xpEarned ?? 0)} XP)
               </span>

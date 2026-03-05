@@ -8,9 +8,11 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+tools/mcp-server/node_modules
 dist
 dist-ssr
 *.local
+.claude/settings.local.json
 
 # Environment variables
 .env

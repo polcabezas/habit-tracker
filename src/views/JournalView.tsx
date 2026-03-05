@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { DateNavigator } from '@/components/DateNavigator';
 import { HabitCard, type Habit } from '@/components/HabitCard';
 import { addDays, format, subDays } from 'date-fns';
-import { calculateCompoundXP } from '@/lib/scoring';
+import { calculateHabitXP, calculateGradientMultiplier } from '@/lib/scoring';
 import { Confetti, type ConfettiRef } from '@/components/magicui/confetti';
 import { AnimatedNumber } from '@/components/AnimatedNumber';
 import { supabase } from '@/lib/supabase';
@@ -133,7 +133,12 @@ export function JournalView() {
       data.habits.forEach(h => {
         if (data.completedIds.has(h.id)) {
             const streak = data.streakYesterday?.[h.id] || 0;
-            const xpEarned = data.savedXpToday?.[h.id] ?? calculateCompoundXP(streak, h.base_xp);
+            const xpEarned = data.savedXpToday?.[h.id] ??
+              calculateHabitXP(
+                { base_xp: h.base_xp, type: h.type, metadataSchema: h.metadataSchema },
+                data.initialMetadata?.[h.id] || {},
+                streak
+              );
             score += xpEarned;
         }
       });
@@ -225,7 +230,11 @@ export function JournalView() {
       if (habit) {
         const streak = data?.streakYesterday?.[id] || 0;
         const signedXp = data?.savedXpToday?.[id] ??
-          (habit.type === 'negative' ? -calculateCompoundXP(streak, habit.base_xp) : calculateCompoundXP(streak, habit.base_xp));
+          calculateHabitXP(
+            { base_xp: habit.base_xp, type: habit.type, metadataSchema: habit.metadataSchema },
+            habitMetadata[id] || {},
+            streak
+          );
         setDailyScore(prevScore => prevScore + (completed ? signedXp : -signedXp));
       }
 
@@ -299,9 +308,11 @@ export function JournalView() {
         const habit = habits.find(h => h.id === habitId);
         const base_xp = habit?.base_xp || 10;
         const streak = data?.streakYesterday?.[habitId] || 0;
-        const xp_earned = habit?.type === 'negative'
-          ? -calculateCompoundXP(streak, base_xp)
-          : calculateCompoundXP(streak, base_xp);
+        const xp_earned = calculateHabitXP(
+          { base_xp, type: habit?.type ?? 'positive', metadataSchema: habit?.metadataSchema },
+          habitMetadata[habitId] || {},
+          streak
+        );
 
         return {
           user_id: userId,
@@ -382,7 +393,14 @@ export function JournalView() {
       
       let score = 0;
       data.habits.forEach(h => {
-        if (data.completedIds.has(h.id)) score += calculateCompoundXP(data.streakYesterday?.[h.id] || 0, h.base_xp);
+        if (data.completedIds.has(h.id)) {
+          score += data.savedXpToday?.[h.id] ??
+            calculateHabitXP(
+              { base_xp: h.base_xp, type: h.type, metadataSchema: h.metadataSchema },
+              data.initialMetadata?.[h.id] || {},
+              data.streakYesterday?.[h.id] || 0
+            );
+        }
       });
       setDailyScore(score);
       setResetNonce(prev => prev + 1);
@@ -418,18 +436,25 @@ export function JournalView() {
       <section className="flex flex-col pb-8">
         {habits.map(habit => {
           const streak = data?.streakYesterday?.[habit.id] || 0;
+          const currentMeta = habitMetadata[habit.id] || {};
+          const gradientMultiplier = calculateGradientMultiplier(habit.metadataSchema ?? [], currentMeta);
           const xp_earned = data?.savedXpToday?.[habit.id] ??
-            (habit.type === 'negative' ? -calculateCompoundXP(streak, habit.base_xp) : calculateCompoundXP(streak, habit.base_xp));
+            calculateHabitXP(
+              { base_xp: habit.base_xp, type: habit.type, metadataSchema: habit.metadataSchema },
+              currentMeta,
+              streak
+            );
           return (
-            <HabitCard 
+            <HabitCard
               key={`${habit.id}-${format(currentDate, 'yyyy-MM-dd')}-${resetNonce}`}
               habit={habit}
               isCompleted={completedHabitIds.has(habit.id)}
-              metadataValues={habitMetadata[habit.id]}
+              metadataValues={currentMeta}
               onToggle={toggleHabit}
               onMetadataChange={handleMetadataChange}
               streak={streak}
               xpEarned={xp_earned}
+              gradientMultiplier={gradientMultiplier}
             />
           );
         })}

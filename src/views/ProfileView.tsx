@@ -1,7 +1,7 @@
 import { Moon, Sun, Monitor, Plus, Settings, Trash2, LogOut, ListChecks } from 'lucide-react';
 import { useState } from 'react';
 import { useTheme } from '@/components/ThemeProvider';
-import type { MetadataField, MetadataFieldType } from '@/components/HabitCard';
+import type { MetadataField, MetadataFieldType, ScoringConfig, ScoringMode } from '@/components/HabitCard';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -56,6 +56,17 @@ export function ProfileView() {
 
   const updateField = (id: string, updates: Partial<MetadataField>) => {
     setMetadataSchema(metadataSchema.map(f => f.id === id ? { ...f, ...updates } : f));
+  };
+
+  const updateScoringConfig = (fieldId: string, updates: Partial<ScoringConfig> | null) => {
+    setMetadataSchema(metadataSchema.map(f => {
+      if (f.id !== fieldId) return f;
+      if (updates === null) {
+        const { scoringConfig: _, ...rest } = f;
+        return rest;
+      }
+      return { ...f, scoringConfig: { ...(f.scoringConfig ?? { mode: 'exponential' }), ...updates } as ScoringConfig };
+    }));
   };
 
   const removeField = (id: string) => {
@@ -244,7 +255,7 @@ export function ProfileView() {
                     </button>
                   </div>
                   <div className="flex gap-2">
-                    <select 
+                    <select
                       value={field.type}
                       onChange={e => updateField(field.id, { type: e.target.value as MetadataFieldType })}
                       className="w-[45%] bg-card border border-border rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring appearance-none text-foreground font-medium"
@@ -255,11 +266,11 @@ export function ProfileView() {
                       <option value="string">Text Input</option>
                       <option value="boolean">Yes/No Toggle</option>
                     </select>
-                    
+
                     {/* Optional config based on type */}
                     {(field.type === 'number' || field.type === 'string') && (
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         value={field.defaultValue || ''}
                         onChange={e => updateField(field.id, { defaultValue: e.target.value })}
                         placeholder="Default"
@@ -267,8 +278,8 @@ export function ProfileView() {
                       />
                     )}
                     {field.type === 'string' && (
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         value={field.unit || ''}
                         onChange={e => updateField(field.id, { unit: e.target.value })}
                         placeholder="Unit (g, ml)"
@@ -276,6 +287,202 @@ export function ProfileView() {
                       />
                     )}
                   </div>
+
+                  {/* ── Scoring Config ──────────────────────────────────────── */}
+                  {(field.type === 'number' || field.type === 'duration' || field.type === 'time') && (
+                    <div className="border-t border-border/40 pt-3 flex flex-col gap-3">
+                      {/* Toggle */}
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={!!field.scoringConfig}
+                          onChange={e => {
+                            if (e.target.checked) {
+                              const defaultMode: ScoringMode = field.type === 'time' ? 'asymmetric' : 'logarithmic';
+                              updateScoringConfig(field.id, { mode: defaultMode });
+                            } else {
+                              updateScoringConfig(field.id, null);
+                            }
+                          }}
+                          className="w-3.5 h-3.5 rounded accent-primary"
+                        />
+                        <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Affects XP scoring</span>
+                      </label>
+
+                      {field.scoringConfig && (
+                        <div className="flex flex-col gap-3 pl-1">
+                          {/* Mode selector */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider w-10">Mode</span>
+                            <select
+                              value={field.scoringConfig.mode}
+                              onChange={e => updateScoringConfig(field.id, { mode: e.target.value as ScoringMode })}
+                              className="flex-1 bg-card border border-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring appearance-none text-foreground font-medium"
+                            >
+                              {field.type === 'time' ? (
+                                <>
+                                  <option value="logarithmic">Logarithmic (default)</option>
+                                  <option value="linear">Linear</option>
+                                  <option value="asymmetric">Asymmetric (earlier = better)</option>
+                                </>
+                              ) : (
+                                <>
+                                  <option value="logarithmic">Logarithmic (default)</option>
+                                  <option value="exponential">Exponential</option>
+                                  <option value="linear">Linear</option>
+                                  <option value="tiered">Tiered</option>
+                                </>
+                              )}
+                            </select>
+                          </div>
+
+                          {/* Logarithmic / Exponential / Linear inputs */}
+                          {(field.scoringConfig.mode === 'logarithmic' || field.scoringConfig.mode === 'exponential' || field.scoringConfig.mode === 'linear') && (
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Ideal value</span>
+                                <input
+                                  type={field.type === 'time' ? 'time' : 'number'}
+                                  value={field.scoringConfig.ideal ?? ''}
+                                  onChange={e => updateScoringConfig(field.id, { ideal: field.type === 'time' ? e.target.value : Number(e.target.value) })}
+                                  placeholder={field.type === 'time' ? '22:00' : '10'}
+                                  className="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring text-foreground font-medium [&::-webkit-calendar-picker-indicator]:opacity-40 [&::-webkit-calendar-picker-indicator]:invert"
+                                />
+                              </div>
+                              <div>
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Worst value</span>
+                                <input
+                                  type={field.type === 'time' ? 'time' : 'number'}
+                                  value={field.scoringConfig.worst ?? ''}
+                                  onChange={e => updateScoringConfig(field.id, { worst: field.type === 'time' ? e.target.value : Number(e.target.value) })}
+                                  placeholder={field.type === 'time' ? '00:00' : '0'}
+                                  className="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring text-foreground font-medium [&::-webkit-calendar-picker-indicator]:opacity-40 [&::-webkit-calendar-picker-indicator]:invert"
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Asymmetric inputs */}
+                          {field.scoringConfig.mode === 'asymmetric' && (
+                            <div className="flex flex-col gap-2">
+                              <div>
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Ideal time</span>
+                                <input
+                                  type="time"
+                                  value={field.scoringConfig.ideal ?? ''}
+                                  onChange={e => updateScoringConfig(field.id, { ideal: e.target.value })}
+                                  className="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring text-foreground font-medium [&::-webkit-calendar-picker-indicator]:opacity-40 [&::-webkit-calendar-picker-indicator]:invert"
+                                />
+                              </div>
+                              <div className="grid grid-cols-3 gap-2 items-end">
+                                <div>
+                                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Pre-allowance (min)</span>
+                                  <span className="text-[9px] text-muted-foreground block mb-1">minutes before ideal at 100%</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={field.scoringConfig.earlyGrace ?? 60}
+                                    onChange={e => updateScoringConfig(field.id, { earlyGrace: Number(e.target.value) })}
+                                    className="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring text-foreground font-medium"
+                                  />
+                                </div>
+                                <div>
+                                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Post-allowance (min)</span>
+                                  <span className="text-[9px] text-muted-foreground block mb-1">minutes after ideal at 100%</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={field.scoringConfig.lateGrace ?? 0}
+                                    onChange={e => updateScoringConfig(field.id, { lateGrace: Number(e.target.value) })}
+                                    className="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring text-foreground font-medium"
+                                  />
+                                </div>
+                                <div>
+                                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Decay σ (min to 50%)</span>
+                                  <span className="text-[9px] text-muted-foreground block mb-1">minutes past plateau edge → 50% XP</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={field.scoringConfig.lateCliff ?? 90}
+                                    onChange={e => updateScoringConfig(field.id, { lateCliff: Number(e.target.value) })}
+                                    className="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring text-foreground font-medium"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Tiered inputs */}
+                          {field.scoringConfig.mode === 'tiered' && (
+                            <div className="flex flex-col gap-2">
+                              {(field.scoringConfig.tiers ?? []).map((tier, idx) => (
+                                <div key={idx} className="flex items-center gap-2">
+                                  <span className="text-[10px] text-muted-foreground font-medium w-8 shrink-0">≤</span>
+                                  <input
+                                    type={field.type === 'time' ? 'time' : 'number'}
+                                    value={tier.upTo === Infinity ? '' : String(tier.upTo)}
+                                    onChange={e => {
+                                      const newTiers = [...(field.scoringConfig!.tiers ?? [])];
+                                      newTiers[idx] = { ...tier, upTo: field.type === 'time' ? e.target.value : Number(e.target.value) };
+                                      updateScoringConfig(field.id, { tiers: newTiers });
+                                    }}
+                                    placeholder="threshold"
+                                    className="flex-1 bg-card border border-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring text-foreground font-medium"
+                                  />
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={Math.round(tier.multiplier * 100)}
+                                    onChange={e => {
+                                      const newTiers = [...(field.scoringConfig!.tiers ?? [])];
+                                      newTiers[idx] = { ...tier, multiplier: Number(e.target.value) / 100 };
+                                      updateScoringConfig(field.id, { tiers: newTiers });
+                                    }}
+                                    placeholder="XP%"
+                                    className="w-16 bg-card border border-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring text-foreground font-medium"
+                                  />
+                                  <span className="text-[10px] text-muted-foreground">%</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const newTiers = (field.scoringConfig!.tiers ?? []).filter((_, i) => i !== idx);
+                                      updateScoringConfig(field.id, { tiers: newTiers });
+                                    }}
+                                    className="text-muted-foreground hover:text-destructive text-xs px-1"
+                                  >✕</button>
+                                </div>
+                              ))}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newTiers = [...(field.scoringConfig!.tiers ?? []), { upTo: 0, multiplier: 1.0 }];
+                                  updateScoringConfig(field.id, { tiers: newTiers });
+                                }}
+                                className="text-[10px] font-bold text-muted-foreground hover:text-foreground bg-secondary/50 hover:bg-secondary px-3 py-1.5 rounded-lg transition-colors self-start"
+                              >
+                                + Add tier
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Min XP floor */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex-1">Min XP floor %</span>
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={Math.round((field.scoringConfig.minMultiplier ?? 0) * 100)}
+                              onChange={e => updateScoringConfig(field.id, { minMultiplier: Number(e.target.value) / 100 })}
+                              className="w-16 bg-card border border-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring text-foreground font-medium"
+                            />
+                            <span className="text-[10px] text-muted-foreground">%</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
               {metadataSchema.length === 0 && (

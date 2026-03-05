@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "habit-tracker": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "tools/mcp-server/node_modules/.bin/tsx",
+        "tools/mcp-server/src/index.ts"
+      ],
+      "env": {
+        "SUPABASE_URL": "${SUPABASE_URL}",
+        "SUPABASE_SERVICE_ROLE_KEY": "${SUPABASE_SERVICE_ROLE_KEY}"
+      }
+    }
+  }
+}
