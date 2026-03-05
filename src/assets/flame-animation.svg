@@ -1,0 +1,208 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300" width="100%" height="100%" overflow="visible">
+  <defs>
+    <!-- Background Gradient Glow -->
+    <radialGradient id="bg-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FF5722" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#FF5722" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Outer Flame Gradient (Deep Oranges) -->
+    <linearGradient id="outer-grad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#D84315"/>
+      <stop offset="40%" stop-color="#FF5722"/>
+      <stop offset="100%" stop-color="#FF9800"/>
+    </linearGradient>
+
+    <!-- Mid Flame Gradient (Bright Oranges) -->
+    <linearGradient id="mid-grad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#FF5722"/>
+      <stop offset="50%" stop-color="#FF9800"/>
+      <stop offset="100%" stop-color="#FFC107"/>
+    </linearGradient>
+
+    <!-- Inner Flame Gradient (Yellows) -->
+    <linearGradient id="inner-grad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#FF9800"/>
+      <stop offset="60%" stop-color="#FFEB3B"/>
+      <stop offset="100%" stop-color="#FFF9C4"/>
+    </linearGradient>
+
+    <!-- Flame Ambient Glow Filter -->
+    <filter id="fire-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+
+    <!-- Core Ambient Glow -->
+    <radialGradient id="core-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FF9800" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#FF5722" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="200" height="300" fill="url(#bg-glow)" rx="28"/>
+
+  <style>
+    /* Main Power Surge Sequence */
+    .power-wrapper {
+      transform-origin: 100px 260px;
+      animation: gainPower 4s ease-in-out infinite;
+    }
+
+    .ambient-glow {
+      transform-origin: 100px 240px;
+      animation: glowPower 4s ease-in-out infinite;
+    }
+
+    /* Gaining Power Keyframes */
+    @keyframes gainPower {
+      0%   { transform: scale(0.25) translateY(15px); }
+      10%  { transform: scale(1.05) translateY(-5px); }
+      20%  { transform: scale(0.9) translateY(2px); }
+      40%  { transform: scale(1.0) translateY(0px); }
+      60%  { transform: scale(0.95) translateY(1px); }
+      80%  { transform: scale(1.0) translateY(0px); }
+      90%  { transform: scale(0.25) translateY(15px); }
+      100% { transform: scale(0.25) translateY(15px); }
+    }
+
+    @keyframes glowPower {
+      0%   { transform: scale(0.3); opacity: 0.1; }
+      10%  { transform: scale(1.3); opacity: 0.9; }
+      20%  { transform: scale(0.9); opacity: 0.6; }
+      40%  { transform: scale(1.1); opacity: 0.7; }
+      60%  { transform: scale(0.95); opacity: 0.65; }
+      80%  { transform: scale(1.05); opacity: 0.7; }
+      90%  { transform: scale(0.3); opacity: 0.1; }
+      100% { transform: scale(0.3); opacity: 0.1; }
+    }
+
+    .core-pulse {
+      transform-origin: 100px 245px;
+      animation: pulse 0.8s infinite alternate ease-in-out;
+    }
+
+    @keyframes pulse {
+      0%   { transform: scale(0.8); opacity: 0.7; }
+      100% { transform: scale(1.2); opacity: 1; }
+    }
+
+    /* Explosive Sparks on Surge */
+    .surge-spark { opacity: 0; }
+    .surge-1 { animation: fly1 4s infinite 0s; }
+    .surge-2 { animation: fly2 4s infinite 0.05s; }
+    .surge-3 { animation: fly3 4s infinite 0.1s; }
+    .surge-4 { animation: fly4 4s infinite 0.02s; }
+    .surge-5 { animation: fly5 4s infinite 0.08s; }
+
+    @keyframes fly1 {
+      0%   { transform: translate(0, 0) scale(1.5); opacity: 0; }
+      2%   { opacity: 1; }
+      15%  { transform: translate(-45px, -130px) scale(0); opacity: 0; }
+      100% { opacity: 0; }
+    }
+    @keyframes fly2 {
+      0%   { transform: translate(0, 0) scale(1.5); opacity: 0; }
+      2%   { opacity: 1; }
+      15%  { transform: translate(40px, -145px) scale(0); opacity: 0; }
+      100% { opacity: 0; }
+    }
+    @keyframes fly3 {
+      0%   { transform: translate(0, 0) scale(1.5); opacity: 0; }
+      2%   { opacity: 1; }
+      15%  { transform: translate(-15px, -165px) scale(0); opacity: 0; }
+      100% { opacity: 0; }
+    }
+    @keyframes fly4 {
+      0%   { transform: translate(0, 0) scale(1.5); opacity: 0; }
+      2%   { opacity: 1; }
+      15%  { transform: translate(55px, -115px) scale(0); opacity: 0; }
+      100% { opacity: 0; }
+    }
+    @keyframes fly5 {
+      0%   { transform: translate(0, 0) scale(1.5); opacity: 0; }
+      2%   { opacity: 1; }
+      15%  { transform: translate(-60px, -105px) scale(0); opacity: 0; }
+      100% { opacity: 0; }
+    }
+
+    /* Continuous Sparks while burning */
+    .float-1 { animation: floatUp1 4s infinite 0s; }
+    .float-2 { animation: floatUp2 4s infinite 0s; }
+    .float-3 { animation: floatUp3 4s infinite 0s; }
+
+    @keyframes floatUp1 {
+      0%, 15% { transform: translate(0, 0) scale(1); opacity: 0; }
+      25%     { opacity: 0.8; }
+      50%     { transform: translate(-25px, -100px) scale(0); opacity: 0; }
+      100%    { opacity: 0; }
+    }
+    @keyframes floatUp2 {
+      0%, 30% { transform: translate(0, 0) scale(1); opacity: 0; }
+      40%     { opacity: 0.8; }
+      65%     { transform: translate(20px, -110px) scale(0); opacity: 0; }
+      100%    { opacity: 0; }
+    }
+    @keyframes floatUp3 {
+      0%, 50% { transform: translate(0, 0) scale(1); opacity: 0; }
+      60%     { opacity: 0.8; }
+      85%     { transform: translate(-10px, -125px) scale(0); opacity: 0; }
+      100%    { opacity: 0; }
+    }
+  </style>
+
+  <g class="power-wrapper">
+    <!-- Ambient back light -->
+    <circle cx="100" cy="220" r="90" fill="url(#core-glow)" class="ambient-glow" />
+
+    <!-- Main Flame Morphing Shapes -->
+    <g class="flame-group" filter="url(#fire-glow)">
+      
+      <!-- Outer Orange Flame -->
+      <path fill="url(#outer-grad)">
+        <animate attributeName="d" 
+                 values="M 100 260 C 50 260 50 160 100 50 C 150 160 150 260 100 260 Z;
+                         M 100 260 C 60 260 40 150 80 40 C 140 140 140 260 100 260 Z;
+                         M 100 260 C 50 260 50 160 100 50 C 150 160 150 260 100 260 Z;
+                         M 100 260 C 40 260 60 140 120 40 C 160 150 140 260 100 260 Z;
+                         M 100 260 C 50 260 50 160 100 50 C 150 160 150 260 100 260 Z" 
+                 dur="1.2s" repeatCount="indefinite" />
+      </path>
+
+      <!-- Mid Bright Orange Flame -->
+      <path fill="url(#mid-grad)">
+        <animate attributeName="d" 
+                 values="M 100 260 C 65 260 65 170 100 90 C 135 170 135 260 100 260 Z;
+                         M 100 260 C 75 260 55 160 85 80 C 125 150 125 260 100 260 Z;
+                         M 100 260 C 55 260 75 150 115 80 C 145 160 125 260 100 260 Z;
+                         M 100 260 C 65 260 65 170 100 90 C 135 170 135 260 100 260 Z" 
+                 dur="1.0s" repeatCount="indefinite" />
+      </path>
+
+      <!-- Inner Yellow Core Flame -->
+      <path fill="url(#inner-grad)">
+        <animate attributeName="d" 
+                 values="M 100 260 C 80 260 80 190 100 130 C 120 190 120 260 100 260 Z;
+                         M 100 260 C 90 260 70 180 90 120 C 110 170 110 260 100 260 Z;
+                         M 100 260 C 70 260 90 170 110 120 C 130 180 110 260 100 260 Z;
+                         M 100 260 C 80 260 80 190 100 130 C 120 190 120 260 100 260 Z" 
+                 dur="0.8s" repeatCount="indefinite" />
+      </path>
+    </g>
+
+    <!-- Pulsing Base Ember -->
+    <circle cx="100" cy="245" r="8" fill="#FFFFFF" class="core-pulse" filter="url(#fire-glow)"/>
+
+    <!-- Sparks that erupt when power surges -->
+    <circle class="surge-spark surge-1" cx="100" cy="245" r="3" fill="#FFEB3B"/>
+    <circle class="surge-spark surge-2" cx="100" cy="245" r="4" fill="#FFF9C4"/>
+    <circle class="surge-spark surge-3" cx="100" cy="245" r="2.5" fill="#FF9800"/>
+    <circle class="surge-spark surge-4" cx="100" cy="245" r="3.5" fill="#FFC107"/>
+    <circle class="surge-spark surge-5" cx="100" cy="245" r="2" fill="#FFFFFF"/>
+
+    <!-- Sparks that gently float up during the raging burn -->
+    <circle class="float-spark float-1" cx="100" cy="230" r="3" fill="#FFEB3B"/>
+    <circle class="float-spark float-2" cx="100" cy="240" r="2.5" fill="#FF9800"/>
+    <circle class="float-spark float-3" cx="100" cy="235" r="3.5" fill="#FFC107"/>
+  </g>
+</svg>

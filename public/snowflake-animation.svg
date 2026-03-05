@@ -1,0 +1,246 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient Glow -->
+    <radialGradient id="bg-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#00BCD4" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#00BCD4" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Outer Ice Gradient (Deep Ocean/Cyan) -->
+    <linearGradient id="outer-ice" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#006064"/>
+      <stop offset="50%" stop-color="#00ACC1"/>
+      <stop offset="100%" stop-color="#26C6DA"/>
+    </linearGradient>
+
+    <!-- Mid Ice Gradient (Bright Cyans) -->
+    <linearGradient id="mid-ice" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#00ACC1"/>
+      <stop offset="50%" stop-color="#4DD0E1"/>
+      <stop offset="100%" stop-color="#84FFFF"/>
+    </linearGradient>
+
+    <!-- Inner Ice Gradient (White/Ice) -->
+    <linearGradient id="inner-ice" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#4DD0E1"/>
+      <stop offset="60%" stop-color="#B2EBF2"/>
+      <stop offset="100%" stop-color="#FFFFFF"/>
+    </linearGradient>
+
+    <!-- Ice Ambient Glow Filter -->
+    <filter id="ice-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="7" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+
+    <!-- Core Ambient Glow -->
+    <radialGradient id="core-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#84FFFF" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#00BCD4" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Snowflake Symmetrical Branch Path -->
+    <path id="branch" d="M -3 0 L -3 -25 L -15 -37 L -11 -41 L -2 -32 L -2 -48 L -10 -56 L -7 -59 L -1 -53 L -1 -70 L -5 -78 L 0 -88 L 5 -78 L 1 -70 L 1 -53 L 7 -59 L 10 -56 L 2 -48 L 2 -32 L 11 -41 L 15 -37 L 3 -25 L 3 0 Z" />
+    
+    <!-- Unified 6-Pointed Snowflake -->
+    <g id="snowflake">
+      <use href="#branch" transform="rotate(0)" />
+      <use href="#branch" transform="rotate(60)" />
+      <use href="#branch" transform="rotate(120)" />
+      <use href="#branch" transform="rotate(180)" />
+      <use href="#branch" transform="rotate(240)" />
+      <use href="#branch" transform="rotate(300)" />
+    </g>
+  </defs>
+
+  <rect width="200" height="300" fill="url(#bg-glow)" rx="28"/>
+
+  <style>
+    /* Main Power Surge Sequence */
+    .power-wrapper {
+      transform-origin: 100px 150px;
+      animation: crystalSurge 4s ease-in-out infinite;
+    }
+
+    .ambient-glow {
+      transform-origin: 100px 150px;
+      animation: glowPower 4s ease-in-out infinite;
+    }
+
+    /* Gaining Power Keyframes */
+    @keyframes crystalSurge {
+      0%   { transform: scale(0.25); }
+      10%  { transform: scale(1.1); }
+      20%  { transform: scale(0.9); }
+      40%  { transform: scale(1.02); }
+      60%  { transform: scale(0.95); }
+      80%  { transform: scale(1.0); }
+      90%  { transform: scale(0.25); }
+      100% { transform: scale(0.25); }
+    }
+
+    @keyframes glowPower {
+      0%   { transform: scale(0.3); opacity: 0.1; }
+      10%  { transform: scale(1.4); opacity: 0.95; }
+      20%  { transform: scale(0.9); opacity: 0.6; }
+      40%  { transform: scale(1.1); opacity: 0.8; }
+      60%  { transform: scale(0.95); opacity: 0.65; }
+      80%  { transform: scale(1.05); opacity: 0.75; }
+      90%  { transform: scale(0.3); opacity: 0.1; }
+      100% { transform: scale(0.3); opacity: 0.1; }
+    }
+
+    /* Layer Rotations - Spinning Up on Power Gain */
+    .spin-outer {
+      transform-origin: 100px 150px;
+      animation: spinCW 12s linear infinite;
+    }
+    
+    .spin-mid {
+      transform-origin: 100px 150px;
+      animation: spinCCW 8s linear infinite;
+    }
+    
+    .spin-inner {
+      transform-origin: 100px 150px;
+      animation: spinCWFast 4s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+    }
+
+    @keyframes spinCW {
+      0%   { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    @keyframes spinCCW {
+      0%   { transform: rotate(15deg); }
+      100% { transform: rotate(-345deg); }
+    }
+    @keyframes spinCWFast {
+      0%   { transform: rotate(0deg); }
+      10%  { transform: rotate(270deg); } /* Blazing fast rotation during surge */
+      100% { transform: rotate(720deg); }
+    }
+
+    /* Shockwave that blasts out during surge */
+    .shockwave {
+      transform-origin: 100px 150px;
+      animation: shock 4s ease-out infinite;
+    }
+    @keyframes shock {
+      0%   { transform: scale(0.1); opacity: 0; stroke-width: 8px; }
+      5%   { opacity: 1; }
+      15%  { transform: scale(3.5); opacity: 0; stroke-width: 1px; }
+      100% { opacity: 0; }
+    }
+
+    /* Explosive Ice Shards on Surge */
+    .shoot-1 { animation: blast1 4s infinite; }
+    .shoot-2 { animation: blast2 4s infinite 0.05s; }
+
+    @keyframes blast1 {
+      0%   { transform: translateY(0); opacity: 0; }
+      4%   { opacity: 1; }
+      15%  { transform: translateY(-80px) scale(0.5); opacity: 0; }
+      100% { opacity: 0; }
+    }
+    @keyframes blast2 {
+      0%   { transform: translateY(0); opacity: 0; }
+      5%   { opacity: 0.8; }
+      18%  { transform: translateY(-60px) scale(0.3); opacity: 0; }
+      100% { opacity: 0; }
+    }
+
+    /* Continuous Orbiting Snow while active */
+    .orbit-container {
+      transform-origin: 100px 150px;
+      animation: spinCW 6s linear infinite;
+    }
+    .float-snow { animation: floatPulse 4s infinite; opacity: 0; }
+    .fs-1 { animation-delay: 0.1s; }
+    .fs-2 { animation-delay: 0.4s; }
+    .fs-3 { animation-delay: 0.2s; }
+
+    @keyframes floatPulse {
+      0%, 15% { transform: scale(0); opacity: 0; }
+      30%     { opacity: 0.8; transform: scale(1.2); }
+      50%     { opacity: 0.5; transform: scale(0.8); }
+      80%     { opacity: 0.8; transform: scale(1.1); }
+      90%, 100% { transform: scale(0); opacity: 0; }
+    }
+  </style>
+
+  <g class="power-wrapper">
+    <!-- Ambient back light -->
+    <circle cx="100" cy="150" r="90" fill="url(#core-glow)" class="ambient-glow" />
+
+    <!-- Outer Shockwave Ring -->
+    <circle cx="100" cy="150" r="30" fill="none" stroke="#B2EBF2" class="shockwave"/>
+
+    <!-- Main Snowflake Layers -->
+    <g filter="url(#ice-glow)">
+      
+      <!-- Outer Deep Cyan Snowflake -->
+      <g class="spin-outer">
+        <g transform="translate(100, 150) scale(0.95)">
+          <use href="#snowflake" fill="url(#outer-ice)" />
+        </g>
+      </g>
+
+      <!-- Mid Bright Cyan Snowflake (Counter-Rotating) -->
+      <g class="spin-mid">
+        <g transform="translate(100, 150) scale(0.65)">
+          <use href="#snowflake" fill="url(#mid-ice)" />
+        </g>
+      </g>
+
+      <!-- Inner Ice White Snowflake (Hyper-Spin) -->
+      <g class="spin-inner">
+        <g transform="translate(100, 150) scale(0.4)">
+          <use href="#snowflake" fill="url(#inner-ice)" />
+        </g>
+      </g>
+
+    </g>
+
+    <!-- Pulsing Morphing Core Crystal -->
+    <polygon fill="#FFFFFF" filter="url(#ice-glow)">
+      <animate attributeName="points"
+               values="100,145 105,150 100,155 95,150;
+                       100,120 130,150 100,180 70,150;
+                       100,135 115,150 100,165 85,150;
+                       100,125 125,150 100,175 75,150;
+                       100,130 120,150 100,170 80,150;
+                       100,125 125,150 100,175 75,150;
+                       100,145 105,150 100,155 95,150;
+                       100,145 105,150 100,155 95,150"
+               keyTimes="0; 0.1; 0.2; 0.4; 0.6; 0.8; 0.9; 1"
+               dur="4s" repeatCount="indefinite" />
+    </polygon>
+
+    <!-- Radial Ice Shards that erupt when power surges -->
+    <g transform="translate(100, 150)">
+      <!-- Primary Shards -->
+      <g transform="rotate(0)"><path d="M-2,-15 L0,-30 L2,-15 L0,-10 Z" fill="#FFFFFF" class="shoot-1"/></g>
+      <g transform="rotate(60)"><path d="M-2,-15 L0,-30 L2,-15 L0,-10 Z" fill="#FFFFFF" class="shoot-1"/></g>
+      <g transform="rotate(120)"><path d="M-2,-15 L0,-30 L2,-15 L0,-10 Z" fill="#FFFFFF" class="shoot-1"/></g>
+      <g transform="rotate(180)"><path d="M-2,-15 L0,-30 L2,-15 L0,-10 Z" fill="#FFFFFF" class="shoot-1"/></g>
+      <g transform="rotate(240)"><path d="M-2,-15 L0,-30 L2,-15 L0,-10 Z" fill="#FFFFFF" class="shoot-1"/></g>
+      <g transform="rotate(300)"><path d="M-2,-15 L0,-30 L2,-15 L0,-10 Z" fill="#FFFFFF" class="shoot-1"/></g>
+
+      <!-- Secondary Offset Shards -->
+      <g transform="rotate(30)"><path d="M-1,-20 L0,-25 L1,-20 L0,-17 Z" fill="#84FFFF" class="shoot-2"/></g>
+      <g transform="rotate(90)"><path d="M-1,-20 L0,-25 L1,-20 L0,-17 Z" fill="#84FFFF" class="shoot-2"/></g>
+      <g transform="rotate(150)"><path d="M-1,-20 L0,-25 L1,-20 L0,-17 Z" fill="#84FFFF" class="shoot-2"/></g>
+      <g transform="rotate(210)"><path d="M-1,-20 L0,-25 L1,-20 L0,-17 Z" fill="#84FFFF" class="shoot-2"/></g>
+      <g transform="rotate(270)"><path d="M-1,-20 L0,-25 L1,-20 L0,-17 Z" fill="#84FFFF" class="shoot-2"/></g>
+      <g transform="rotate(330)"><path d="M-1,-20 L0,-25 L1,-20 L0,-17 Z" fill="#84FFFF" class="shoot-2"/></g>
+    </g>
+
+    <!-- Orbiting Snow Particles that appear during the "active" phase -->
+    <g class="orbit-container">
+      <circle cx="100" cy="55" r="3" fill="#FFFFFF" class="float-snow fs-1"/>
+      <circle cx="160" cy="180" r="2" fill="#84FFFF" class="float-snow fs-2"/>
+      <circle cx="35" cy="140" r="2.5" fill="#B2EBF2" class="float-snow fs-3"/>
+      <circle cx="110" cy="235" r="3.5" fill="#4DD0E1" class="float-snow fs-1"/>
+    </g>
+  </g>
+</svg>

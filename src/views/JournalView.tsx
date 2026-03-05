@@ -8,6 +8,13 @@ import { calculateCompoundXP } from '@/lib/scoring';
 import { Confetti, type ConfettiRef } from '@/components/magicui/confetti';
 import { AnimatedNumber } from '@/components/AnimatedNumber';
 import { supabase } from '@/lib/supabase';
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction
+} from '@/components/ui/alert-dialog';
+import flameAnimationSvg     from '@/assets/flame-animation.svg?raw';
+import snowflakeAnimationSvg from '@/assets/snowflake-animation.svg?raw';
+import newStreakAnimationSvg from '@/assets/new-streak-animation.svg?raw';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -19,6 +26,7 @@ export function JournalView() {
   const [habitMetadata, setHabitMetadata] = useState<Record<string, Record<string, any>>>({});
   const [dailyScore, setDailyScore] = useState(0);
   const [resetNonce, setResetNonce] = useState(0);
+  const [dialogState, setDialogState] = useState<null | 'frozen' | 'lost' | 'increased'>(null);
   const confettiRef = useRef<ConfettiRef>(null);
 
   // 1. Fetch data query
@@ -132,6 +140,27 @@ export function JournalView() {
       setDailyScore(score);
     }
   }, [data]);
+
+  // Entrance streak check — once per day
+  useEffect(() => {
+    if (!data?.loggedDates) return;
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    if (format(currentDate, 'yyyy-MM-dd') !== todayStr) return;
+    if (localStorage.getItem('lastStreakDialogDate') === todayStr) return;
+
+    localStorage.setItem('lastStreakDialogDate', todayStr);
+
+    if (data.loggedDates.has(todayStr)) return;
+
+    const yesterdayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+    const twoDaysStr   = format(subDays(new Date(), 2), 'yyyy-MM-dd');
+
+    if (!data.loggedDates.has(yesterdayStr) && !data.loggedDates.has(twoDaysStr)) {
+      setDialogState('lost');
+    } else if (!data.loggedDates.has(yesterdayStr)) {
+      setDialogState('frozen');
+    }
+  }, [data, currentDate]);
 
   const handlePrevDay = () => setCurrentDate(prev => addDays(prev, -1));
   const handleNextDay = () => setCurrentDate(prev => addDays(prev, 1));
@@ -289,6 +318,13 @@ export function JournalView() {
       }
     },
     onSuccess: async () => {
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      if (format(currentDate, 'yyyy-MM-dd') === todayStr) {
+        const yesterdayStr = format(subDays(currentDate, 1), 'yyyy-MM-dd');
+        if (data?.loggedDates.has(yesterdayStr)) {
+          setDialogState('increased');
+        }
+      }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['journal'] }),
         queryClient.invalidateQueries({ queryKey: ['stats'] }),
@@ -441,6 +477,31 @@ export function JournalView() {
         />,
         document.body
       )}
+
+      <AlertDialog open={dialogState !== null} onOpenChange={() => setDialogState(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader className="text-center sm:text-center sm:place-items-center">
+            <div className="w-full flex justify-center mb-2 overflow-visible">
+              {dialogState === 'increased' && <div className="h-52 overflow-visible" dangerouslySetInnerHTML={{ __html: flameAnimationSvg }} />}
+              {dialogState === 'frozen'    && <div className="h-52 overflow-visible" dangerouslySetInnerHTML={{ __html: snowflakeAnimationSvg }} />}
+              {dialogState === 'lost'      && <div className="h-52 overflow-visible" dangerouslySetInnerHTML={{ __html: newStreakAnimationSvg }} />}
+            </div>
+            <AlertDialogTitle className="text-2xl w-full text-center">
+              {dialogState === 'increased' && 'Streak On Fire!'}
+              {dialogState === 'frozen'    && 'Streak at Risk'}
+              {dialogState === 'lost'      && 'Time to Rise'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-base text-center whitespace-pre-line w-full">
+              {dialogState === 'increased' && "You're on a roll!\nAnother day crushed — your streak is growing stronger.\nDon't stop now!"}
+              {dialogState === 'frozen'    && "You're just one log away from keeping your streak alive.\nShow up today — that's all it takes!"}
+              {dialogState === 'lost'      && "Every champion has a comeback story.\nToday is day one of your next streak.\nMake it count!"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="sm:flex-col">
+            <AlertDialogAction className="w-full" onClick={() => setDialogState(null)}>Let's go!</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

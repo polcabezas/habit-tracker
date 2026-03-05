@@ -1,0 +1,230 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300" width="100%" height="100%" overflow="visible">
+  <defs>
+    <!-- Background Gradient Glow -->
+    <radialGradient id="fw-bg-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FF3D00" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#FF3D00" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Wood Base Gradient -->
+    <linearGradient id="fw-wood" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5D4037"/>
+      <stop offset="50%" stop-color="#3E2723"/>
+      <stop offset="100%" stop-color="#21120B"/>
+    </linearGradient>
+
+    <!-- Wood Rim Light / Texture Highlight -->
+    <linearGradient id="fw-wood-highlight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#8D6E63" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#3E2723" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Illuminated Wood Glow (When Fire is Active) -->
+    <radialGradient id="fw-wood-lit" cx="50%" cy="10%" r="90%">
+      <stop offset="0%" stop-color="#FF7043"/>
+      <stop offset="30%" stop-color="#D84315"/>
+      <stop offset="100%" stop-color="#3E2723" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Flame Gradients (Adapted to small fire) -->
+    <linearGradient id="fw-outer-grad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#D84315"/>
+      <stop offset="50%" stop-color="#FF5722"/>
+      <stop offset="100%" stop-color="#FF9800"/>
+    </linearGradient>
+    <linearGradient id="fw-mid-grad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#FF5722"/>
+      <stop offset="60%" stop-color="#FF9800"/>
+      <stop offset="100%" stop-color="#FFC107"/>
+    </linearGradient>
+    <linearGradient id="fw-inner-grad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#FF9800"/>
+      <stop offset="70%" stop-color="#FFEB3B"/>
+      <stop offset="100%" stop-color="#FFF9C4"/>
+    </linearGradient>
+
+    <!-- Core Core/Ambient Glow -->
+    <radialGradient id="fw-core-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFC107" stop-opacity="0.8"/>
+      <stop offset="40%" stop-color="#FF5722" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#FF5722" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Universal Fire Glow Filter -->
+    <filter id="fw-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+
+    <!-- Logs Clip Path for seamless lighting overlays -->
+    <clipPath id="fw-log-clip">
+      <rect x="68" y="215" width="18" height="60" rx="9" transform="rotate(-35 77 245)"/>
+      <rect x="114" y="215" width="18" height="60" rx="9" transform="rotate(35 123 245)"/>
+      <rect x="65" y="240" width="70" height="20" rx="10"/>
+    </clipPath>
+  </defs>
+
+  <rect width="200" height="300" fill="url(#fw-bg-glow)" class="fw-bg-pulse" rx="28"/>
+
+  <style>
+    /* Falling Spark Ignition Sequence */
+    .fw-spark-drop {
+      animation: dropSpark 4s cubic-bezier(0.5, 0, 1, 1) infinite;
+    }
+    @keyframes dropSpark {
+      0%, 2%  { transform: translateY(50px) scale(1, 1); opacity: 0; }
+      5%      { opacity: 1; }
+      14.9%   { transform: translateY(240px) scale(1, 2.5); opacity: 1; }
+      15%, 100% { transform: translateY(245px) scale(1, 0); opacity: 0; }
+    }
+
+    /* Ignition Shockwave */
+    .fw-ignition-ring {
+      transform-origin: 100px 240px;
+      animation: ignitionRing 4s ease-out infinite;
+    }
+    @keyframes ignitionRing {
+      0%, 14%  { transform: scale(0); opacity: 0; stroke-width: 6px; }
+      15%      { transform: scale(0.2); opacity: 1; stroke-width: 8px; }
+      22%      { transform: scale(3.5); opacity: 0; stroke-width: 1px; }
+      100%     { opacity: 0; }
+    }
+
+    /* Small Fire Growth and Shrink */
+    .fw-fire-wrapper {
+      transform-origin: 100px 240px;
+      animation: fireGrow 4s ease-in-out infinite;
+    }
+    @keyframes fireGrow {
+      0%, 14% { transform: scale(0) translateY(10px); opacity: 0; }
+      15%     { transform: scale(0.3) translateY(5px); opacity: 1; }
+      20%     { transform: scale(0.85) translateY(-2px); }
+      35%     { transform: scale(0.7) translateY(2px); }
+      55%     { transform: scale(0.8) translateY(0px); }
+      75%     { transform: scale(0.7) translateY(1px); }
+      85%     { transform: scale(0.8) translateY(-1px); opacity: 1; }
+      90%, 100%{ transform: scale(0) translateY(10px); opacity: 0; }
+    }
+
+    /* Wood Lighting / Core Glow Pulse */
+    .fw-log-warmth, .fw-core-pulse, .fw-bg-pulse {
+      animation: ambientGlow 4s ease-in-out infinite;
+    }
+    @keyframes ambientGlow {
+      0%, 14%  { opacity: 0; }
+      20%      { opacity: 0.95; }
+      40%      { opacity: 0.65; }
+      60%      { opacity: 0.85; }
+      80%      { opacity: 0.7; }
+      85%      { opacity: 1; }
+      90%, 100%{ opacity: 0; }
+    }
+
+    /* Ongoing Fire Embers (Only active while burning) */
+    .fw-ember { opacity: 0; }
+    .fw-e1 { animation: emberFly1 4s infinite; }
+    .fw-e2 { animation: emberFly2 4s infinite; }
+    .fw-e3 { animation: emberFly3 4s infinite; }
+    .fw-e4 { animation: emberFly4 4s infinite; }
+
+    @keyframes emberFly1 {
+      0%, 20% { transform: translate(100px, 240px) scale(0); opacity: 0; }
+      25%     { opacity: 1; transform: translate(95px, 230px) scale(1.5); }
+      35%     { transform: translate(80px, 180px) scale(0); opacity: 0; }
+      100%    { opacity: 0; }
+    }
+    @keyframes emberFly2 {
+      0%, 35% { transform: translate(100px, 240px) scale(0); opacity: 0; }
+      40%     { opacity: 1; transform: translate(105px, 230px) scale(1.2); }
+      52%     { transform: translate(120px, 170px) scale(0); opacity: 0; }
+      100%    { opacity: 0; }
+    }
+    @keyframes emberFly3 {
+      0%, 50% { transform: translate(100px, 240px) scale(0); opacity: 0; }
+      55%     { opacity: 1; transform: translate(100px, 230px) scale(1.8); }
+      65%     { transform: translate(90px, 160px) scale(0); opacity: 0; }
+      100%    { opacity: 0; }
+    }
+    @keyframes emberFly4 {
+      0%, 70% { transform: translate(100px, 240px) scale(0); opacity: 0; }
+      75%     { opacity: 1; transform: translate(102px, 230px) scale(1.3); }
+      85%     { transform: translate(115px, 175px) scale(0); opacity: 0; }
+      100%    { opacity: 0; }
+    }
+  </style>
+
+  <!-- Dormant / Base Logs Setup -->
+  <g>
+    <!-- Left Back Log -->
+    <rect x="68" y="215" width="18" height="60" rx="9" transform="rotate(-35 77 245)" fill="url(#fw-wood)"/>
+    <rect x="68" y="215" width="18" height="60" rx="9" transform="rotate(-35 77 245)" fill="url(#fw-wood-highlight)"/>
+    
+    <!-- Right Back Log -->
+    <rect x="114" y="215" width="18" height="60" rx="9" transform="rotate(35 123 245)" fill="url(#fw-wood)"/>
+    <rect x="114" y="215" width="18" height="60" rx="9" transform="rotate(35 123 245)" fill="url(#fw-wood-highlight)"/>
+    
+    <!-- Front Horizontal Log -->
+    <rect x="65" y="240" width="70" height="20" rx="10" fill="url(#fw-wood)"/>
+    <rect x="65" y="240" width="70" height="20" rx="10" fill="url(#fw-wood-highlight)"/>
+  </g>
+
+  <!-- Log Warmth Overlay (Clips exactly to logs and fades in with the fire) -->
+  <g clip-path="url(#fw-log-clip)">
+    <rect x="50" y="200" width="100" height="80" fill="url(#fw-wood-lit)" class="fw-log-warmth"/>
+  </g>
+
+  <!-- Ignition Shockwave Ring -->
+  <circle cx="100" cy="240" r="15" fill="none" stroke="#FFC107" class="fw-ignition-ring" filter="url(#fw-glow)"/>
+
+  <!-- Core Background Light -->
+  <circle cx="100" cy="230" r="70" fill="url(#fw-core-glow)" class="fw-core-pulse"/>
+
+  <!-- The Small Fire Container -->
+  <g class="fw-fire-wrapper" filter="url(#fw-glow)">
+    <!-- Adjusted scale/translation so the flame centers on the logs -->
+    <g transform="translate(0, -20) scale(0.95)">
+      <!-- Outer Orange Flame -->
+      <path fill="url(#fw-outer-grad)">
+        <animate attributeName="d" 
+                 values="M 100 260 C 50 260 50 160 100 50 C 150 160 150 260 100 260 Z;
+                         M 100 260 C 60 260 40 150 80 40 C 140 140 140 260 100 260 Z;
+                         M 100 260 C 50 260 50 160 100 50 C 150 160 150 260 100 260 Z;
+                         M 100 260 C 40 260 60 140 120 40 C 160 150 140 260 100 260 Z;
+                         M 100 260 C 50 260 50 160 100 50 C 150 160 150 260 100 260 Z" 
+                 dur="1.2s" repeatCount="indefinite" />
+      </path>
+
+      <!-- Mid Bright Orange Flame -->
+      <path fill="url(#fw-mid-grad)">
+        <animate attributeName="d" 
+                 values="M 100 260 C 65 260 65 170 100 90 C 135 170 135 260 100 260 Z;
+                         M 100 260 C 75 260 55 160 85 80 C 125 150 125 260 100 260 Z;
+                         M 100 260 C 55 260 75 150 115 80 C 145 160 125 260 100 260 Z;
+                         M 100 260 C 65 260 65 170 100 90 C 135 170 135 260 100 260 Z" 
+                 dur="1.0s" repeatCount="indefinite" />
+      </path>
+
+      <!-- Inner Yellow Core Flame -->
+      <path fill="url(#fw-inner-grad)">
+        <animate attributeName="d" 
+                 values="M 100 260 C 80 260 80 190 100 130 C 120 190 120 260 100 260 Z;
+                         M 100 260 C 90 260 70 180 90 120 C 110 170 110 260 100 260 Z;
+                         M 100 260 C 70 260 90 170 110 120 C 130 180 110 260 100 260 Z;
+                         M 100 260 C 80 260 80 190 100 130 C 120 190 120 260 100 260 Z" 
+                 dur="0.8s" repeatCount="indefinite" />
+      </path>
+    </g>
+  </g>
+
+  <!-- The Falling Ignition Spark -->
+  <ellipse cx="100" cy="0" rx="1.5" ry="8" fill="#FFFFFF" class="fw-spark-drop" filter="url(#fw-glow)"/>
+
+  <!-- Sequence of Floating Embers that erupt during the burn phase -->
+  <g filter="url(#fw-glow)">
+    <circle r="3" fill="#FFEB3B" class="fw-ember fw-e1"/>
+    <circle r="2" fill="#FF9800" class="fw-ember fw-e2"/>
+    <circle r="2.5" fill="#FFC107" class="fw-ember fw-e3"/>
+    <circle r="1.5" fill="#FFF9C4" class="fw-ember fw-e4"/>
+  </g>
+
+</svg>
