@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS public.habits (
     type habit_type NOT NULL DEFAULT 'positive',
     base_xp INTEGER NOT NULL DEFAULT 10,
     metadata_schema JSONB DEFAULT '[]'::jsonb,
+    frequency INTEGER[] DEFAULT '{0,1,2,3,4,5,6}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -21,7 +22,8 @@ CREATE TABLE IF NOT EXISTS public.habit_logs (
     completed_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     date DATE NOT NULL, -- The specific day the habit was recorded for
     metadata_values JSONB DEFAULT '{}'::jsonb,
-    
+    xp_earned INTEGER NOT NULL DEFAULT 0,
+
     -- Ensure a habit can only be logged once per day per user (unless it's quantifiable, but we'll enforce that via app logic or relax this later if needed)
     UNIQUE(habit_id, date, user_id)
 );
@@ -80,3 +82,22 @@ CREATE TRIGGER handle_habits_updated_at
     BEFORE UPDATE ON public.habits
     FOR EACH ROW
     EXECUTE PROCEDURE public.handle_updated_at();
+
+-- Create user_stats table
+CREATE TABLE public.user_stats (
+    user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    freeze_count INT NOT NULL DEFAULT 0 CHECK (freeze_count >= 0 AND freeze_count <= 3),
+    rewarded_weeks INT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.user_stats ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can read own stats"
+    ON public.user_stats FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can upsert own stats"
+    ON public.user_stats FOR ALL
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);

@@ -357,11 +357,11 @@ server.tool(
   }
 );
 
-// ── log_day ─────────────────────────────────────────────────────────────────
+// ── replace_day ──────────────────────────────────────────────────────────────
 
 server.tool(
-  "log_day",
-  "Save journal completions for a specific date. Replaces all existing logs for that date (delete + insert). XP is calculated automatically. Pass an empty completions array to clear the day.",
+  "replace_day",
+  "Replace all journal completions for a specific date (delete + insert). XP is calculated automatically. Pass an empty completions array to clear the day. WARNING: this overwrites any existing logs for the date.",
   {
     user_id: z.string(),
     date: z.string().describe("Date in yyyy-MM-dd format"),
@@ -443,6 +443,103 @@ server.tool(
     if (insertError) throw new Error(insertError.message);
 
     return ok({ message: `Logged ${inserted!.length} habits for ${date}.`, logs: inserted });
+  }
+);
+
+// ── log_day (insert-only) ─────────────────────────────────────────────────────
+
+server.tool(
+  "log_day",
+  "Add new habit completions for a specific date without touching existing logs. Habits already logged on that date are silently skipped — existing data is never modified. Use replace_day if you need to overwrite the full day.",
+  {
+    user_id: z.string(),
+    date: z.string().describe("Date in yyyy-MM-dd format"),
+    completions: z
+      .array(
+        z.object({
+          habit_id: z.string(),
+          metadata_values: z.record(z.any()).optional().default({}),
+        })
+      )
+      .describe("Habits to log; already-logged habits are skipped"),
+  },
+  async ({ user_id, date, completions }) => {
+    // Fetch habits for XP calculation
+    const { data: habits, error: habitsError } = await supabase
+      .from("habits")
+      .select("id, base_xp, type, metadata_schema")
+      .eq("user_id", user_id);
+    if (habitsError) throw new Error(habitsError.message);
+
+    const habitMap = new Map((habits ?? []).map((h: any) => [h.id, h]));
+
+    // Fetch prior logs to compute per-habit streaks
+    const { data: priorLogs, error: logsError } = await supabase
+      .from("habit_logs")
+      .select("habit_id, date")
+      .eq("user_id", user_id)
+      .lt("date", date)
+      .order("date", { ascending: false });
+    if (logsError) throw new Error(logsError.message);
+
+    const logsByHabit = new Map<string, Set<string>>();
+    (priorLogs ?? []).forEach((l: any) => {
+      if (!logsByHabit.has(l.habit_id)) logsByHabit.set(l.habit_id, new Set());
+      logsByHabit.get(l.habit_id)!.add(l.date as string);
+    });
+
+    const streakFor = (habitId: string): number => {
+      let streak = 0;
+      let check = daysBefore(date, 1);
+      const habitLogs = logsByHabit.get(habitId);
+      if (!habitLogs) return 0;
+      while (habitLogs.has(toDateStr(check))) {
+        streak++;
+        check = new Date(check.getTime() - 86_400_000);
+      }
+      return streak;
+    };
+
+    // Fetch existing logs for this date to determine what's already logged
+    const { data: existingLogs } = await supabase
+      .from("habit_logs")
+      .select("habit_id")
+      .eq("user_id", user_id)
+      .eq("date", date);
+    const alreadyLogged = new Set((existingLogs ?? []).map((l: any) => l.habit_id));
+
+    // Filter to only new habits
+    const newCompletions = completions.filter(c => !alreadyLogged.has(c.habit_id));
+    const skipped = completions.filter(c => alreadyLogged.has(c.habit_id)).map(c => c.habit_id);
+
+    if (newCompletions.length === 0) {
+      return ok({ message: `All habits were already logged for ${date}. Nothing inserted.`, skipped });
+    }
+
+    const logsToInsert = newCompletions.map(({ habit_id, metadata_values = {} }) => {
+      const habit = habitMap.get(habit_id) as any;
+      if (!habit) throw new Error(`Habit ${habit_id} not found for user ${user_id}`);
+      const filledValues = applyMetadataDefaults(habit.metadata_schema ?? [], metadata_values);
+      return {
+        user_id,
+        habit_id,
+        date,
+        metadata_values: filledValues,
+        xp_earned: calculateHabitXP(habit, filledValues, streakFor(habit_id)),
+      };
+    });
+
+    const { data: inserted, error: insertError } = await supabase
+      .from("habit_logs")
+      .insert(logsToInsert)
+      .select();
+    if (insertError) throw new Error(insertError.message);
+
+    return ok({
+      message: `Logged ${inserted!.length} new habit(s) for ${date}.${skipped.length ? ` Skipped ${skipped.length} already-logged habit(s).` : ""}`,
+      logs: inserted,
+      skipped,
+    });
   }
 );
 
@@ -717,7 +814,7 @@ server.tool(
 
 server.tool(
   "get_due_habits",
-  "Returns habits scheduled for a given date with suggested optimal values for each metadata field. Use this before log_day to know exactly what to log and what metadata values will maximize XP.",
+  "Returns habits scheduled for a given date with suggested optimal values for each metadata field. Use this before log_day or replace_day to know exactly what to log and what metadata values will maximize XP.",
   {
     user_id: z.string(),
     date: z.string().optional().describe("yyyy-MM-dd, defaults to today"),
