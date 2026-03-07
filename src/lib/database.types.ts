@@ -20,6 +20,8 @@ export interface Database {
           frequency: number[] | null
           created_at: string
           updated_at: string
+          streak_count: number
+          streak_last_date: string | null
         }
         Insert: {
           id?: string
@@ -31,6 +33,8 @@ export interface Database {
           frequency?: number[] | null
           created_at?: string
           updated_at?: string
+          streak_count?: number
+          streak_last_date?: string | null
         }
         Update: {
           id?: string
@@ -42,6 +46,8 @@ export interface Database {
           frequency?: number[] | null
           created_at?: string
           updated_at?: string
+          streak_count?: number
+          streak_last_date?: string | null
         }
         Relationships: [
           {
@@ -96,9 +102,9 @@ export interface Database {
         ]
       }
       user_stats: {
-        Row: { user_id: string; freeze_count: number; rewarded_weeks: number; updated_at: string }
-        Insert: { user_id: string; freeze_count?: number; rewarded_weeks?: number; updated_at?: string }
-        Update: { freeze_count?: number; rewarded_weeks?: number; updated_at?: string }
+        Row: { user_id: string; freeze_count: number; rewarded_weeks: number; updated_at: string; global_streak: number; global_streak_last_date: string | null; total_xp: number }
+        Insert: { user_id: string; freeze_count?: number; rewarded_weeks?: number; updated_at?: string; global_streak?: number; global_streak_last_date?: string | null; total_xp?: number }
+        Update: { freeze_count?: number; rewarded_weeks?: number; updated_at?: string; global_streak?: number; global_streak_last_date?: string | null; total_xp?: number }
         Relationships: []
       }
     }

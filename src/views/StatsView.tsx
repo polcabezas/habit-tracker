@@ -4,12 +4,10 @@ import { useState, useMemo } from 'react';
 import { AnimatedNumber } from '@/components/AnimatedNumber';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { calculateStreakFreezers } from '@/lib/scoring';
 import {
   subDays,
   addDays,
   format,
-  isSameDay,
   startOfWeek,
   endOfWeek,
   startOfMonth,
@@ -34,34 +32,47 @@ export function StatsView() {
       const userId = session?.user?.id;
       if (!userId) return null;
 
+      // Fetch user_stats for all-time XP and global streak (O(1))
+      const { data: userStats } = await supabase
+        .from('user_stats')
+        .select('total_xp, global_streak, global_streak_last_date, freeze_count')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const yesterdayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+      const gsLastDate = userStats?.global_streak_last_date ?? null;
+
+      const allTimeXp = userStats?.total_xp ?? 0;
+      const streak = (gsLastDate === todayStr || gsLastDate === yesterdayStr)
+        ? (userStats?.global_streak ?? 0)
+        : 0;
+      const freezeCount = userStats?.freeze_count ?? 0;
+
+      // Bounded 1-year log fetch for chart and period averages
       const { data: habits } = await supabase.from('habits').select('id, base_xp').eq('user_id', userId);
       const xpMap = new Map(habits?.map(h => [h.id, h.base_xp]) || []);
 
-      // 2. Fetch all logs for this user to calculate all-time and streaks
+      const oneYearAgo = format(subYears(new Date(), 1), 'yyyy-MM-dd');
       const { data: logs } = await supabase
         .from('habit_logs')
         .select('date, habit_id, xp_earned')
         .eq('user_id', userId)
+        .gte('date', oneYearAgo)
         .order('date', { ascending: false });
 
-      let allTimeXp = 0;
       const dailyXp = new Map<string, number>();
-      const logSet = new Set<string>();
-
       (logs || []).forEach(log => {
-        const xp = (log.xp_earned !== undefined && log.xp_earned !== null && log.xp_earned > 0) 
-          ? log.xp_earned 
+        const xp = (log.xp_earned !== undefined && log.xp_earned !== null && log.xp_earned > 0)
+          ? log.xp_earned
           : (xpMap.get(log.habit_id) || 0);
-          
-        allTimeXp += xp;
         if (xp > 0) {
-           logSet.add(log.date); // Mark this day as having at least one completed habit
-           dailyXp.set(log.date, (dailyXp.get(log.date) || 0) + xp);
+          dailyXp.set(log.date, (dailyXp.get(log.date) || 0) + xp);
         }
       });
 
       const now = new Date();
-      
+
       const calculatePeriodStats = (start: Date, end: Date) => {
         let total = 0;
         const days = Math.max(1, differenceInDays(end, start) + 1);
@@ -76,10 +87,10 @@ export function StatsView() {
 
       const avgWeek = calculatePeriodStats(startOfWeek(now), now);
       const prevAvgWeek = calculatePeriodStats(startOfWeek(subWeeks(now, 1)), endOfWeek(subWeeks(now, 1)));
-      
+
       const avgMonth = calculatePeriodStats(startOfMonth(now), now);
       const prevAvgMonth = calculatePeriodStats(startOfMonth(subMonths(now, 1)), endOfMonth(subMonths(now, 1)));
-      
+
       const avgYear = calculatePeriodStats(startOfYear(now), now);
       const prevAvgYear = calculatePeriodStats(startOfYear(subYears(now, 1)), endOfYear(subYears(now, 1)));
 
@@ -88,52 +99,10 @@ export function StatsView() {
         return ((curr - prev) / prev) * 100;
       };
 
-      let streak = 0;
-      let checkDate = new Date();
-      while (true) {
-        const dateStr = format(checkDate, 'yyyy-MM-dd');
-        if (logSet.has(dateStr)) {
-          streak++;
-          checkDate = subDays(checkDate, 1);
-        } else {
-           if (streak === 0 && isSameDay(checkDate, now)) {
-               checkDate = subDays(checkDate, 1);
-               const ydayStr = format(checkDate, 'yyyy-MM-dd');
-               if (logSet.has(ydayStr)) {
-                   streak++;
-                   checkDate = subDays(checkDate, 1);
-                   continue;
-               }
-           }
-           break;
-        }
-      }
-
-      const { data: userStats } = await supabase
-        .from('user_stats')
-        .select('freeze_count, rewarded_weeks')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      const { newFreezers, newRewardedWeeks } = calculateStreakFreezers(
-        streak,
-        userStats?.freeze_count ?? 0,
-        userStats?.rewarded_weeks ?? 0
-      );
-
-      if (newFreezers !== (userStats?.freeze_count ?? 0) || newRewardedWeeks !== (userStats?.rewarded_weeks ?? 0)) {
-        await supabase.from('user_stats').upsert({
-          user_id: userId,
-          freeze_count: newFreezers,
-          rewarded_weeks: newRewardedWeeks,
-          updated_at: new Date().toISOString()
-        });
-      }
-
       return {
         allTimeXp,
         streak,
-        freezeCount: newFreezers,
+        freezeCount,
         dailyXp,
         avgWeek, diffWeek: calcDiff(avgWeek, prevAvgWeek),
         avgMonth, diffMonth: calcDiff(avgMonth, prevAvgMonth),

@@ -375,41 +375,43 @@ server.tool(
       .describe("Habits completed on this date"),
   },
   async ({ user_id, date, completions }) => {
-    // Fetch habits for XP calculation
+    const today = toDateStr(new Date());
+    const yesterday = toDateStr(daysBefore(today, 1));
+
+    // Fetch habits with streak columns for O(1) streak derivation
     const { data: habits, error: habitsError } = await supabase
       .from("habits")
-      .select("id, base_xp, type, metadata_schema")
+      .select("id, base_xp, type, metadata_schema, streak_count, streak_last_date")
       .eq("user_id", user_id);
     if (habitsError) throw new Error(habitsError.message);
 
     const habitMap = new Map((habits ?? []).map((h: any) => [h.id, h]));
 
-    // Fetch prior logs to compute per-habit streaks
-    const { data: priorLogs, error: logsError } = await supabase
-      .from("habit_logs")
-      .select("habit_id, date")
-      .eq("user_id", user_id)
-      .lt("date", date)
-      .order("date", { ascending: false });
-    if (logsError) throw new Error(logsError.message);
-
-    const logsByHabit = new Map<string, Set<string>>();
-    (priorLogs ?? []).forEach((l: any) => {
-      if (!logsByHabit.has(l.habit_id)) logsByHabit.set(l.habit_id, new Set());
-      logsByHabit.get(l.habit_id)!.add(l.date as string);
-    });
-
+    // Derive streak for XP calculation (streak before today for today's date)
     const streakFor = (habitId: string): number => {
-      let streak = 0;
-      let check = daysBefore(date, 1);
-      const habitLogs = logsByHabit.get(habitId);
-      if (!habitLogs) return 0;
-      while (habitLogs.has(toDateStr(check))) {
-        streak++;
-        check = new Date(check.getTime() - 86_400_000);
+      const habit = habitMap.get(habitId) as any;
+      if (!habit) return 0;
+      const lastDate = habit.streak_last_date as string | null;
+      if (date === today) {
+        if (lastDate === today) return Math.max(0, (habit.streak_count as number) - 1);
+        if (lastDate === yesterday) return habit.streak_count as number;
+        return 0;
       }
-      return streak;
+      // Non-today: use stored streak as proxy
+      if (lastDate === today || lastDate === yesterday) return habit.streak_count as number;
+      return 0;
     };
+
+    // Capture today's existing XP BEFORE deleting (for total_xp delta)
+    let oldXpTotal = 0;
+    if (date === today) {
+      const { data: existingTodayLogs } = await supabase
+        .from("habit_logs")
+        .select("xp_earned")
+        .eq("user_id", user_id)
+        .eq("date", date);
+      oldXpTotal = (existingTodayLogs ?? []).reduce((s: number, l: any) => s + (l.xp_earned || 0), 0);
+    }
 
     // Delete existing logs for this date (idempotent)
     const { error: deleteError } = await supabase
@@ -442,6 +444,72 @@ server.tool(
       .select();
     if (insertError) throw new Error(insertError.message);
 
+    // Update streak columns and user_stats for today's date only
+    if (date === today && inserted && inserted.length > 0) {
+      for (const log of inserted) {
+        const { data: freshHabit } = await supabase
+          .from("habits")
+          .select("streak_count, streak_last_date")
+          .eq("id", log.habit_id)
+          .eq("user_id", user_id)
+          .single();
+
+        const lastDate = freshHabit?.streak_last_date as string | null;
+        if (lastDate === today) continue;
+
+        const newCount = lastDate === yesterday ? (freshHabit?.streak_count ?? 0) + 1 : 1;
+        await supabase.from("habits").update({
+          streak_count: newCount,
+          streak_last_date: today,
+        }).eq("id", log.habit_id).eq("user_id", user_id);
+      }
+
+      const { data: currentStats } = await supabase
+        .from("user_stats")
+        .select("global_streak, global_streak_last_date, freeze_count, rewarded_weeks, total_xp")
+        .eq("user_id", user_id)
+        .maybeSingle();
+
+      const gsLastDate = currentStats?.global_streak_last_date ?? null;
+      const twoDaysAgo = toDateStr(daysBefore(today, 2));
+
+      let newGlobalStreak = currentStats?.global_streak ?? 0;
+      let newGlobalLastDate: string | null = gsLastDate;
+      let newFreezeCount = currentStats?.freeze_count ?? 0;
+
+      if (gsLastDate !== today) {
+        if (gsLastDate === yesterday) {
+          newGlobalStreak = (currentStats?.global_streak ?? 0) + 1;
+          newGlobalLastDate = today;
+        } else if (gsLastDate === twoDaysAgo && newFreezeCount > 0) {
+          newGlobalStreak = (currentStats?.global_streak ?? 0) + 1;
+          newGlobalLastDate = today;
+          newFreezeCount--;
+        } else {
+          newGlobalStreak = 1;
+          newGlobalLastDate = today;
+        }
+      }
+
+      const { newFreezers, newRewardedWeeks } = calculateStreakFreezers(
+        newGlobalStreak,
+        newFreezeCount,
+        currentStats?.rewarded_weeks ?? 0
+      );
+
+      const newXpTotal = (inserted as any[]).reduce((s: number, l: any) => s + (l.xp_earned || 0), 0);
+
+      await supabase.from("user_stats").upsert({
+        user_id,
+        global_streak: newGlobalStreak,
+        global_streak_last_date: newGlobalLastDate,
+        freeze_count: newFreezers,
+        rewarded_weeks: newRewardedWeeks,
+        total_xp: Math.max(0, (currentStats?.total_xp ?? 0) + newXpTotal - oldXpTotal),
+        updated_at: new Date().toISOString(),
+      });
+    }
+
     return ok({ message: `Logged ${inserted!.length} habits for ${date}.`, logs: inserted });
   }
 );
@@ -464,40 +532,27 @@ server.tool(
       .describe("Habits to log; already-logged habits are skipped"),
   },
   async ({ user_id, date, completions }) => {
-    // Fetch habits for XP calculation
+    const today = toDateStr(new Date());
+    const yesterday = toDateStr(daysBefore(today, 1));
+
+    // Fetch habits with streak columns for O(1) streak derivation
     const { data: habits, error: habitsError } = await supabase
       .from("habits")
-      .select("id, base_xp, type, metadata_schema")
+      .select("id, base_xp, type, metadata_schema, streak_count, streak_last_date")
       .eq("user_id", user_id);
     if (habitsError) throw new Error(habitsError.message);
 
     const habitMap = new Map((habits ?? []).map((h: any) => [h.id, h]));
 
-    // Fetch prior logs to compute per-habit streaks
-    const { data: priorLogs, error: logsError } = await supabase
-      .from("habit_logs")
-      .select("habit_id, date")
-      .eq("user_id", user_id)
-      .lt("date", date)
-      .order("date", { ascending: false });
-    if (logsError) throw new Error(logsError.message);
-
-    const logsByHabit = new Map<string, Set<string>>();
-    (priorLogs ?? []).forEach((l: any) => {
-      if (!logsByHabit.has(l.habit_id)) logsByHabit.set(l.habit_id, new Set());
-      logsByHabit.get(l.habit_id)!.add(l.date as string);
-    });
-
+    // Derive streak for XP calculation
     const streakFor = (habitId: string): number => {
-      let streak = 0;
-      let check = daysBefore(date, 1);
-      const habitLogs = logsByHabit.get(habitId);
-      if (!habitLogs) return 0;
-      while (habitLogs.has(toDateStr(check))) {
-        streak++;
-        check = new Date(check.getTime() - 86_400_000);
-      }
-      return streak;
+      const habit = habitMap.get(habitId) as any;
+      if (!habit) return 0;
+      const lastDate = habit.streak_last_date as string | null;
+      // log_day is insert-only; habits with streak_last_date===today are already logged and will be skipped
+      if (lastDate === yesterday) return habit.streak_count as number;
+      if (lastDate === today) return Math.max(0, (habit.streak_count as number) - 1);
+      return 0;
     };
 
     // Fetch existing logs for this date to determine what's already logged
@@ -534,6 +589,72 @@ server.tool(
       .insert(logsToInsert)
       .select();
     if (insertError) throw new Error(insertError.message);
+
+    // Update streak columns and user_stats for today's date only
+    if (date === today && inserted && inserted.length > 0) {
+      for (const log of inserted) {
+        const { data: freshHabit } = await supabase
+          .from("habits")
+          .select("streak_count, streak_last_date")
+          .eq("id", log.habit_id)
+          .eq("user_id", user_id)
+          .single();
+
+        const lastDate = freshHabit?.streak_last_date as string | null;
+        if (lastDate === today) continue;
+
+        const newCount = lastDate === yesterday ? (freshHabit?.streak_count ?? 0) + 1 : 1;
+        await supabase.from("habits").update({
+          streak_count: newCount,
+          streak_last_date: today,
+        }).eq("id", log.habit_id).eq("user_id", user_id);
+      }
+
+      const { data: currentStats } = await supabase
+        .from("user_stats")
+        .select("global_streak, global_streak_last_date, freeze_count, rewarded_weeks, total_xp")
+        .eq("user_id", user_id)
+        .maybeSingle();
+
+      const gsLastDate = currentStats?.global_streak_last_date ?? null;
+      const twoDaysAgo = toDateStr(daysBefore(today, 2));
+
+      let newGlobalStreak = currentStats?.global_streak ?? 0;
+      let newGlobalLastDate: string | null = gsLastDate;
+      let newFreezeCount = currentStats?.freeze_count ?? 0;
+
+      if (gsLastDate !== today) {
+        if (gsLastDate === yesterday) {
+          newGlobalStreak = (currentStats?.global_streak ?? 0) + 1;
+          newGlobalLastDate = today;
+        } else if (gsLastDate === twoDaysAgo && newFreezeCount > 0) {
+          newGlobalStreak = (currentStats?.global_streak ?? 0) + 1;
+          newGlobalLastDate = today;
+          newFreezeCount--;
+        } else {
+          newGlobalStreak = 1;
+          newGlobalLastDate = today;
+        }
+      }
+
+      const { newFreezers, newRewardedWeeks } = calculateStreakFreezers(
+        newGlobalStreak,
+        newFreezeCount,
+        currentStats?.rewarded_weeks ?? 0
+      );
+
+      const newXpTotal = (inserted as any[]).reduce((s: number, l: any) => s + (l.xp_earned || 0), 0);
+
+      await supabase.from("user_stats").upsert({
+        user_id,
+        global_streak: newGlobalStreak,
+        global_streak_last_date: newGlobalLastDate,
+        freeze_count: newFreezers,
+        rewarded_weeks: newRewardedWeeks,
+        total_xp: Math.max(0, (currentStats?.total_xp ?? 0) + newXpTotal),
+        updated_at: new Date().toISOString(),
+      });
+    }
 
     return ok({
       message: `Logged ${inserted!.length} new habit(s) for ${date}.${skipped.length ? ` Skipped ${skipped.length} already-logged habit(s).` : ""}`,
@@ -577,86 +698,41 @@ server.tool(
   "Compute all-time XP, current streak, freeze count, and XP averages for a user.",
   { user_id: z.string() },
   async ({ user_id }) => {
-    const { data: habits } = await supabase
-      .from("habits")
-      .select("id, base_xp")
-      .eq("user_id", user_id);
-    const xpMap = new Map((habits ?? []).map((h: any) => [h.id, h.base_xp]));
-
-    const { data: logs } = await supabase
-      .from("habit_logs")
-      .select("date, habit_id, xp_earned")
-      .eq("user_id", user_id)
-      .order("date", { ascending: false });
-
-    let allTimeXp = 0;
-    const logSet = new Set<string>();
-    const dailyXp = new Map<string, number>();
-
-    (logs ?? []).forEach((log: any) => {
-      const xp =
-        log.xp_earned != null && log.xp_earned > 0
-          ? log.xp_earned
-          : xpMap.get(log.habit_id) ?? 0;
-      allTimeXp += xp;
-      if (xp > 0) {
-        logSet.add(log.date);
-        dailyXp.set(log.date, (dailyXp.get(log.date) ?? 0) + xp);
-      }
-    });
-
-    // Streak calculation — matches StatsView.tsx exactly
-    let streak = 0;
-    let checkDate = new Date();
-    outer: while (true) {
-      const dateStr = toDateStr(checkDate);
-      if (logSet.has(dateStr)) {
-        streak++;
-        checkDate = new Date(checkDate.getTime() - 86_400_000);
-      } else {
-        if (streak === 0) {
-          checkDate = new Date(checkDate.getTime() - 86_400_000);
-          if (logSet.has(toDateStr(checkDate))) {
-            streak++;
-            checkDate = new Date(checkDate.getTime() - 86_400_000);
-            continue outer;
-          }
-        }
-        break;
-      }
-    }
-
+    // Fetch user_stats for all-time XP and global streak (O(1))
     const { data: userStats } = await supabase
       .from("user_stats")
-      .select("freeze_count, rewarded_weeks")
+      .select("total_xp, global_streak, global_streak_last_date, freeze_count")
       .eq("user_id", user_id)
       .maybeSingle();
 
-    const currentFreeze   = userStats?.freeze_count   ?? 0;
-    const currentRewarded = userStats?.rewarded_weeks ?? 0;
-    const { newFreezers, newRewardedWeeks } = calculateStreakFreezers(streak, currentFreeze, currentRewarded);
+    const today = toDateStr(new Date());
+    const yesterday = toDateStr(daysBefore(today, 1));
+    const gsLastDate = userStats?.global_streak_last_date ?? null;
 
-    if (newFreezers !== currentFreeze || newRewardedWeeks !== currentRewarded) {
-      await supabase.from("user_stats").upsert({
-        user_id,
-        freeze_count:   newFreezers,
-        rewarded_weeks: newRewardedWeeks,
-        updated_at:     new Date().toISOString(),
-      });
-    }
+    const allTimeXp = userStats?.total_xp ?? 0;
+    const streak = (gsLastDate === today || gsLastDate === yesterday)
+      ? (userStats?.global_streak ?? 0)
+      : 0;
+    const freezeCount = userStats?.freeze_count ?? 0;
 
-    const sevenDaysAgo = toDateStr(daysBefore(toDateStr(new Date()), 7));
+    // Bounded 7-day fetch for avgXpLast7Days
+    const sevenDaysAgo = toDateStr(daysBefore(today, 7));
+    const { data: recentLogs } = await supabase
+      .from("habit_logs")
+      .select("date, xp_earned")
+      .eq("user_id", user_id)
+      .gte("date", sevenDaysAgo);
+
     let weekXp = 0;
-    dailyXp.forEach((xp, date) => {
-      if (date >= sevenDaysAgo) weekXp += xp;
+    (recentLogs ?? []).forEach((log: any) => {
+      if (log.xp_earned != null && log.xp_earned > 0) weekXp += log.xp_earned;
     });
 
     return ok({
       allTimeXp,
       streak,
-      freezeCount: newFreezers,
+      freezeCount,
       avgXpLast7Days: Math.round(weekXp / 7),
-      totalDaysLogged: logSet.size,
     });
   }
 );

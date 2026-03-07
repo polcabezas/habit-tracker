@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS public.habits (
     base_xp INTEGER NOT NULL DEFAULT 10,
     metadata_schema JSONB DEFAULT '[]'::jsonb,
     frequency INTEGER[] DEFAULT '{0,1,2,3,4,5,6}',
+    streak_count INTEGER NOT NULL DEFAULT 0,
+    streak_last_date DATE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -88,6 +90,9 @@ CREATE TABLE public.user_stats (
     user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     freeze_count INT NOT NULL DEFAULT 0 CHECK (freeze_count >= 0 AND freeze_count <= 3),
     rewarded_weeks INT NOT NULL DEFAULT 0,
+    global_streak INTEGER NOT NULL DEFAULT 0,
+    global_streak_last_date DATE,
+    total_xp BIGINT NOT NULL DEFAULT 0,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
