@@ -498,19 +498,22 @@ export function JournalView() {
           .maybeSingle();
 
         if (currentStats) {
-          const updates: Record<string, any> = {
+          const needsStreakRollback = currentStats.global_streak_last_date === todayStr;
+          const newGlobalStreak = needsStreakRollback
+            ? Math.max(0, (currentStats.global_streak || 0) - 1)
+            : (currentStats.global_streak || 0);
+
+          await supabase.from('user_stats').upsert({
             user_id: userId,
             total_xp: Math.max(0, (currentStats.total_xp || 0) - todayXpTotal),
+            global_streak: newGlobalStreak,
+            global_streak_last_date: needsStreakRollback
+              ? (newGlobalStreak === 0 ? null : yesterdayStr)
+              : currentStats.global_streak_last_date,
+            freeze_count: currentStats.freeze_count ?? 0,
+            rewarded_weeks: currentStats.rewarded_weeks ?? 0,
             updated_at: new Date().toISOString()
-          };
-
-          if (currentStats.global_streak_last_date === todayStr) {
-            const newGlobalStreak = Math.max(0, (currentStats.global_streak || 0) - 1);
-            updates.global_streak = newGlobalStreak;
-            updates.global_streak_last_date = newGlobalStreak === 0 ? null : yesterdayStr;
-          }
-
-          await supabase.from('user_stats').upsert(updates);
+          });
         }
       }
     },
